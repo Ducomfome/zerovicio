@@ -32,34 +32,13 @@ const safeSaveToFirestore = async (db: any, transactionId: string, data: any) =>
   }
 };
 
-// QR Code simples em SVG - SEM dependências externas
-const generateQRCodeSVG = (pixCode: string): string => {
-  // Simulação simples de QR Code - para desenvolvimento
-  const svg = `
-    <svg width="256" height="256" xmlns="http://www.w3.org/2000/svg">
-      <rect width="100%" height="100%" fill="#ffffff"/>
-      <rect x="16" y="16" width="224" height="224" fill="none" stroke="#000000" stroke-width="2"/>
-      
-      <!-- Simulação de padrão QR Code -->
-      <rect x="50" y="50" width="20" height="20" fill="#000000"/>
-      <rect x="50" y="80" width="20" height="20" fill="#000000"/>
-      <rect x="80" y="50" width="20" height="20" fill="#000000"/>
-      <rect x="110" y="110" width="20" height="20" fill="#000000"/>
-      <rect x="140" y="140" width="20" height="20" fill="#000000"/>
-      <rect x="170" y="170" width="20" height="20" fill="#000000"/>
-      <rect x="200" y="200" width="20" height="20" fill="#000000"/>
-      
-      <text x="128" y="100" text-anchor="middle" font-family="Arial" font-size="12" fill="#000000">PIX</text>
-      <text x="128" y="120" text-anchor="middle" font-family="Arial" font-size="10" fill="#666666">Use o código PIX</text>
-      <text x="128" y="240" text-anchor="middle" font-family="Arial" font-size="8" fill="#999999">Modo Desenvolvimento</text>
-    </svg>
-  `;
-  
-  return "data:image/svg+xml;base64," + Buffer.from(svg).toString('base64');
+// Gerar QR Code usando API externa (100% compatível)
+const generateQRCode = (pixCode: string): string => {
+  // Usa API pública para gerar QR Code PNG real
+  return `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(pixCode)}`;
 };
 
 export async function POST(request: Request) {
-  let logTentativas: string[] = [];
   let debugInfo: any = {};
 
   try {
@@ -79,7 +58,7 @@ export async function POST(request: Request) {
       firebaseStatus: app ? 'connected' : 'failed',
     };
 
-    console.log("🚀 Iniciando Scanner V8 (Sem Dependências)...");
+    console.log("🚀 Iniciando Gerador PIX (Front Compatível)...");
 
     // Payload base
     const basePayload = {
@@ -93,7 +72,7 @@ export async function POST(request: Request) {
       }
     };
 
-    // ESTRATÉGIAS ATUALIZADAS
+    // ESTRATÉGIAS
     const strategies: PaymentStrategy[] = [
       {
         name: "SuitPay Official PIX",
@@ -164,7 +143,7 @@ export async function POST(request: Request) {
       console.log("🔑 Chave API não configurada ou inválida");
     }
 
-    // SE NENHUMA API FUNCIONOU, USAR MOCK MELHORADO
+    // SE NENHUMA API FUNCIONOU, USAR MOCK COMPATÍVEL
     if (!successData) {
       console.log("🧪 Criando transação mock...");
       
@@ -176,12 +155,12 @@ export async function POST(request: Request) {
         city: "SAO PAULO"
       });
       
-      // Gerar QR Code SVG (sem dependências)
-      const qrCodeBase64 = generateQRCodeSVG(mockPixCode);
+      // Gerar QR Code REAL usando API externa
+      const qrCodeImageUrl = generateQRCode(mockPixCode);
 
       const mockData = {
         id: transactionId,
-        qrCodeBase64: qrCodeBase64,
+        qrCodeBase64: qrCodeImageUrl, // AGORA é uma URL, não base64
         copiaECola: mockPixCode,
         provider: "MOCK_DEV",
         expiresIn: "24:00:00"
@@ -214,11 +193,12 @@ export async function POST(request: Request) {
     // SUCESSO COM API REAL
     const data = successData as any;
     const pixCopiaCola = data.paymentCode || data.pix_code || data.qrcode || data.qr_code;
+    
+    // Se a API retornar base64, usa diretamente. Se não, gera QR Code da URL
     let qrCodeImage = data.paymentCodeBase64 || data.qrcode_image || data.qrCodeImage;
-
-    // Se a API não retornar QR Code, geramos um SVG
+    
     if (!qrCodeImage && pixCopiaCola) {
-      qrCodeImage = generateQRCodeSVG(pixCopiaCola);
+      qrCodeImage = generateQRCode(pixCopiaCola);
     }
 
     const finalId = data.idTransaction || data.transactionId || data.id || transactionId;
