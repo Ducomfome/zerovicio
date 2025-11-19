@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore, doc, setDoc } from 'firebase/firestore';
 
-// Interface para evitar erro de build
 interface PaymentStrategy {
   name: string;
   url: string;
@@ -49,37 +48,74 @@ export async function POST(request: Request) {
       }
     };
 
-    console.log("🚀 Iniciando Scanner V3 (Foco na Paradise)...");
+    console.log("🚀 Iniciando Scanner V4 (Paradise + SuitPay)...");
 
-    // ESTRATÉGIAS: Variações da URL da Paradise + X-API-Key
+    // ESTRATÉGIAS EXPANDIDAS - Testando múltiplos endpoints
     const strategies: PaymentStrategy[] = [
-        {
-            name: "1. Paradise API (Com /api/v1)",
-            url: "https://api.paradisepags.com/api/v1/gateway/request-qrcode",
-            headers: { 'Content-Type': 'application/json', 'X-API-Key': SECRET_KEY }
-        },
-        {
-            name: "2. Paradise .com.br (Com /api/v1)",
-            url: "https://api.paradisepags.com.br/api/v1/gateway/request-qrcode",
-            headers: { 'Content-Type': 'application/json', 'X-API-Key': SECRET_KEY }
-        },
-        {
-            name: "3. Paradise Direto (Sem api subdomain)",
-            url: "https://paradisepags.com/api/v1/gateway/request-qrcode",
-            headers: { 'Content-Type': 'application/json', 'X-API-Key': SECRET_KEY }
-        },
-        {
-             // Última tentativa na SuitPay mas com header 'ci' sendo o SECRET (alguns sistemas invertem)
-            name: "4. SuitPay (CI = Secret)",
-            url: "https://ws.suitpay.app/api/v1/gateway/request-qrcode",
-            headers: { 'Content-Type': 'application/json', 'ci': SECRET_KEY, 'cs': SECRET_KEY }
-        }
+      // Paradise - Endpoints principais
+      {
+        name: "1. Paradise API Principal",
+        url: "https://api.paradisepayments.com/api/v1/gateway/request-qrcode",
+        headers: { 'Content-Type': 'application/json', 'X-API-Key': SECRET_KEY }
+      },
+      {
+        name: "2. Paradise Payments",
+        url: "https://api.paradisepayments.com.br/api/v1/gateway/request-qrcode",
+        headers: { 'Content-Type': 'application/json', 'X-API-Key': SECRET_KEY }
+      },
+      {
+        name: "3. Paradise Pags",
+        url: "https://api.paradisepags.com.br/api/v1/gateway/request-qrcode",
+        headers: { 'Content-Type': 'application/json', 'X-API-Key': SECRET_KEY }
+      },
+      {
+        name: "4. Paradise Direct",
+        url: "https://paradisepayments.com/api/v1/gateway/request-qrcode",
+        headers: { 'Content-Type': 'application/json', 'X-API-Key': SECRET_KEY }
+      },
+      
+      // SuitPay - Diferentes combinações de headers
+      {
+        name: "5. SuitPay (CI=Secret)",
+        url: "https://ws.suitpay.app/api/v1/gateway/request-qrcode",
+        headers: { 'Content-Type': 'application/json', 'ci': SECRET_KEY }
+      },
+      {
+        name: "6. SuitPay (X-API-Key)",
+        url: "https://ws.suitpay.app/api/v1/gateway/request-qrcode",
+        headers: { 'Content-Type': 'application/json', 'X-API-Key': SECRET_KEY }
+      },
+      {
+        name: "7. SuitPay (Authorization Bearer)",
+        url: "https://ws.suitpay.app/api/v1/gateway/request-qrcode",
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SECRET_KEY}` }
+      },
+      {
+        name: "8. SuitPay (CI+CS)",
+        url: "https://ws.suitpay.app/api/v1/gateway/request-qrcode",
+        headers: { 'Content-Type': 'application/json', 'ci': SECRET_KEY, 'cs': SECRET_KEY }
+      },
+      
+      // Endpoints alternativos
+      {
+        name: "9. SuitPay Gateway",
+        url: "https://gateway.suitpay.app/api/v1/gateway/request-qrcode",
+        headers: { 'Content-Type': 'application/json', 'ci': SECRET_KEY }
+      },
+      {
+        name: "10. Paradise v2 API",
+        url: "https://api.paradisepags.com/api/v2/gateway/request-qrcode",
+        headers: { 'Content-Type': 'application/json', 'X-API-Key': SECRET_KEY }
+      }
     ];
 
     let successData: any = null;
+    let workingStrategy: PaymentStrategy | null = null;
 
     for (const strat of strategies) {
         console.log(`🔄 Tentando: ${strat.name}`);
+        logTentativas.push(`Tentando: ${strat.name}`);
+        
         try {
             const res = await fetch(strat.url, {
                 method: 'POST',
@@ -89,57 +125,87 @@ export async function POST(request: Request) {
             
             const text = await res.text();
             console.log(`   Status: ${res.status}`);
+            logTentativas.push(`${strat.name}: Status ${res.status}`);
 
             if (res.ok) {
                 try {
                     const json = JSON.parse(text);
-                    // Verifica se tem QR Code
-                    if (json.paymentCode || json.qrcode_text || json.pix_code) {
-                        console.log(`✅ ACHAMOS! Funcionou na: ${strat.name}`);
+                    // Verifica múltiplos formatos de resposta
+                    if (json.paymentCode || json.pix_code || json.qrcode_text || json.qrCode || json.pixCode) {
+                        console.log(`✅ SUCESSO na: ${strat.name}`);
                         successData = json;
+                        workingStrategy = strat;
+                        logTentativas.push(`✅ SUCESSO: ${strat.name}`);
                         break;
+                    } else {
+                      console.log(`   ⚠️  Resposta OK mas sem QR code:`, Object.keys(json));
+                      logTentativas.push(`⚠️ ${strat.name}: Resposta sem QR code`);
                     }
-                } catch (e) {}
+                } catch (e) {
+                  console.log(`   ❌ Erro parse JSON:`, text.substring(0, 100));
+                  logTentativas.push(`❌ ${strat.name}: Erro parse JSON`);
+                }
+            } else {
+                console.log(`   ❌ Status ${res.status}:`, text.substring(0, 200));
+                logTentativas.push(`❌ ${strat.name}: Status ${res.status}`);
             }
-            logTentativas.push(`${strat.name}: ${res.status}`);
         } catch (e: any) {
-            logTentativas.push(`${strat.name}: Erro Rede`);
+            console.log(`   💥 Erro rede:`, e.message);
+            logTentativas.push(`💥 ${strat.name}: Erro Rede - ${e.message}`);
         }
     }
 
     if (!successData) {
         return NextResponse.json({ 
-            error: 'Falha na conexão.', 
-            message: 'Nenhuma URL da Paradise aceitou a chave. Verifique se sua conta Paradise está ativa para API.',
-            logs: logTentativas 
+            error: 'Falha na conexão com todas as APIs', 
+            message: 'Nenhuma estratégia funcionou. Verifique: 1) Chave API 2) Rede 3) Status conta',
+            logs: logTentativas,
+            suggestions: [
+              'Verifique se a Paradise/SuitPay está ativa',
+              'Confirme a chave API no painel',
+              'Teste a conexão de rede',
+              'Contate o suporte da gateway'
+            ]
         }, { status: 502 });
     }
 
-    // SUCESSO
+    // SUCESSO - Processar resposta
     const data = successData as any;
-    const pixCopiaCola = data.paymentCode || data.pix_code || data.qrcode_text;
-    const qrCodeImage = data.paymentCodeBase64 || data.qrcode_image;
-    const finalId = data.idTransaction || transactionId;
+    const pixCopiaCola = data.paymentCode || data.pix_code || data.qrcode_text || data.qrCode || data.pixCode;
+    const qrCodeImage = data.paymentCodeBase64 || data.qrcode_image || data.qrCodeImage;
+    const finalId = data.idTransaction || data.transactionId || transactionId;
+
+    console.log(`🎉 Transação criada via: ${workingStrategy?.name}`);
+    console.log(`📱 ID: ${finalId}`);
+    console.log(`💰 Valor: R$ ${price}`);
 
     await setDoc(doc(db, "transactions", String(finalId)), {
         status: 'created',
-        provider: 'paradise_v3',
+        provider: workingStrategy?.name || 'unknown',
         plan: plan || 'unknown',
         email: email,
         name: name,
         price: price,
         fbp: fbp || null,
         fbc: fbc || null, 
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        strategy: workingStrategy?.name
     });
 
     return NextResponse.json({
       id: finalId,
       qrCodeBase64: qrCodeImage || null,
-      copiaECola: pixCopiaCola
+      copiaECola: pixCopiaCola,
+      provider: workingStrategy?.name,
+      message: `Criado via ${workingStrategy?.name}`
     });
 
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('💥 Erro geral:', error);
+    return NextResponse.json({ 
+      error: 'Erro interno', 
+      message: error.message,
+      logs: logTentativas 
+    }, { status: 500 });
   }
 }
