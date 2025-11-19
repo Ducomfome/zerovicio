@@ -5,31 +5,25 @@ import { getFirestore, doc, setDoc } from 'firebase/firestore';
 // --- INICIALIZAÇÃO SEGURA DO FIREBASE ---
 const initFirebase = () => {
   const configStr = process.env.NEXT_PUBLIC_FIREBASE_CONFIG;
-  
-  if (!configStr) {
-    throw new Error('❌ Váriavel NEXT_PUBLIC_FIREBASE_CONFIG não encontrada!');
-  }
-
+  if (!configStr) throw new Error('❌ Váriavel NEXT_PUBLIC_FIREBASE_CONFIG não encontrada!');
   try {
     const firebaseConfig = JSON.parse(configStr);
     return !getApps().length ? initializeApp(firebaseConfig) : getApp();
   } catch (e) {
-    console.error("Erro ao fazer parse do JSON do Firebase:", e);
-    throw new Error('❌ Erro na formatação do JSON do Firebase');
+    console.error("Erro JSON Firebase:", e);
+    throw new Error('❌ Erro JSON Firebase');
   }
 };
 
 export async function POST(request: Request) {
+  let logErros = []; // Vamos guardar os erros pra te mostrar se tudo falhar
+  
   try {
     const app = initFirebase();
     const db = getFirestore(app);
     
-    // 1. CREDENCIAIS
-    // .trim() remove espaços invisíveis que dão erro 403
     const RECIPIENT_ID = (process.env.PARADISE_RECIPIENT_ID || '').trim(); 
     const SECRET_KEY = (process.env.PARADISE_SECRET_KEY || '').trim();    
-
-    console.log(`🔑 Auth Tentativa: CI=${RECIPIENT_ID} | CS=${SECRET_KEY.slice(0,5)}...`);
 
     if (!RECIPIENT_ID || !SECRET_KEY) {
       return NextResponse.json({ error: 'Credenciais ausentes na Vercel' }, { status: 500 });
@@ -60,52 +54,93 @@ export async function POST(request: Request) {
       }
     };
 
-    console.log("🚀 Payload:", JSON.stringify(paymentPayload));
+    console.log("🚀 Iniciando Tentativas de Conexão...");
 
-    // 2. ESTRATÉGIA "FORÇA BRUTA" SUITPAY
-    // A URL ws.suitpay.app espera 'ci' e 'cs', mesmo que o painel da Paradise diga X-API-Key.
-    const API_URL = "https://ws.suitpay.app/api/v1/gateway/request-qrcode";
-    
-    const gatewayResponse = await fetch(API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'ci': RECIPIENT_ID,      // Enviamos o store_... aqui
-        'cs': SECRET_KEY         // Enviamos o sk_... aqui
-      },
-      body: JSON.stringify(paymentPayload)
-    });
+    // --- LISTA DE ESTRATÉGIAS ---
+    const strategies = [
+        {
+            name: "1. Paradise Oficial (X-API-Key)",
+            url: "https://api.paradisepags.com/v1/gateway/request-qrcode",
+            headers: {
+                'Content-Type': 'application/json',
+                'X-API-Key': SECRET_KEY
+            }
+        },
+        {
+            name: "2. SuitPay Padrão (ci/cs)",
+            url: "https://ws.suitpay.app/api/v1/gateway/request-qrcode",
+            headers: {
+                'Content-Type': 'application/json',
+                'ci': RECIPIENT_ID, 
+                'cs': SECRET_KEY
+            }
+        },
+        {
+            name: "3. SuitPay (ID Limpo)",
+            url: "https://ws.suitpay.app/api/v1/gateway/request-qrcode",
+            headers: {
+                'Content-Type': 'application/json',
+                // Remove 'store_' se existir, para tentar o ID puro
+                'ci': RECIPIENT_ID.replace('store_', ''), 
+                'cs': SECRET_KEY
+            }
+        }
+    ];
 
-    const responseText = await gatewayResponse.text();
-    console.log("📩 Resposta Gateway:", responseText);
+    let successData = null;
 
-    let data;
-    try {
-        data = JSON.parse(responseText);
-    } catch (e) {
-        return NextResponse.json({ error: 'Erro 502: Gateway retornou HTML', rawResponse: responseText }, { status: 502 });
+    // --- LOOP DE TENTATIVAS ---
+    for (const strategy of strategies) {
+        console.log(`🔄 Tentando: ${strategy.name}...`);
+        try {
+            const response = await fetch(strategy.url, {
+                method: 'POST',
+                headers: strategy.headers,
+                body: JSON.stringify(paymentPayload)
+            });
+            
+            const text = await response.text();
+            console.log(`   Status: ${response.status}`);
+            
+            // Se deu certo (200 ou 201), paramos de tentar
+            if (response.ok) {
+                try {
+                    const json = JSON.parse(text);
+                    if (json.response !== 'Error') {
+                        console.log(`✅ SUCESSO com: ${strategy.name}`);
+                        successData = json;
+                        break; // Sai do loop
+                    }
+                } catch(e) {}
+            } else {
+                logErros.push(`${strategy.name}: Status ${response.status} - ${text.slice(0, 100)}`);
+            }
+        } catch (err: any) {
+            console.error(`   Erro conexão: ${err.message}`);
+            logErros.push(`${strategy.name}: Erro de Rede - ${err.message}`);
+        }
     }
 
-    // Se der 403, tentamos dar uma dica melhor do que fazer
-    if (gatewayResponse.status === 403 || gatewayResponse.status === 401) {
+    // --- RESULTADO ---
+    if (!successData) {
+        // Se chegou aqui, TODAS falharam
+        console.error("❌ Todas as tentativas falharam.");
         return NextResponse.json({ 
-            error: 'Acesso Negado (403).', 
-            message: "A SuitPay recusou a chave. Tente remover o prefixo 'store_' do ID na Vercel se ele existir.",
-            details: data 
-        }, { status: 403 });
+            error: 'Falha na comunicação com Paradise/SuitPay', 
+            logs: logErros,
+            message: "Verifique os logs na Vercel para ver qual método chegou mais perto."
+        }, { status: 502 });
     }
 
-    if (!gatewayResponse.ok || data.response === 'Error') {
-      return NextResponse.json({ error: 'Erro no processamento', details: data }, { status: 500 });
-    }
-
+    // Se deu certo, segue o fluxo normal
+    const data = successData;
     const pixCopiaCola = data.paymentCode || data.pix_code || data.qrcode_text;
     const qrCodeImage = data.paymentCodeBase64 || data.qrcode_image;
     const finalId = data.idTransaction || transactionId;
 
     await setDoc(doc(db, "transactions", String(finalId)), {
         status: 'created',
-        provider: 'paradise_suitpay',
+        provider: 'paradise_auto',
         plan: plan || 'unknown',
         email: email,
         name: name,
