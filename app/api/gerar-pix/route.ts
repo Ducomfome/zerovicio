@@ -32,18 +32,12 @@ const safeSaveToFirestore = async (db: any, transactionId: string, data: any) =>
   }
 };
 
-// Gerar QR Code usando API externa - CORRIGIDO
-const generateQRCode = (pixCode: string): string => {
-  // URL correta para API de QR Code
-  return `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(pixCode)}&format=png`;
-};
-
 export async function POST(request: Request) {
   let debugInfo: any = {};
 
   try {
     const body = await request.json();
-    const { name, email, cpf, price, plan, fbp, fbc } = body;
+    const { name, email, cpf, price, plan, fbp, fbc, phone } = body;
     const transactionId = crypto.randomUUID();
 
     // Inicializar Firebase
@@ -58,40 +52,48 @@ export async function POST(request: Request) {
       firebaseStatus: app ? 'connected' : 'failed',
     };
 
-    console.log("🚀 Iniciando Gerador PIX (QR Code Fix)...");
+    console.log("🚀 Iniciando Paradise API Real...");
 
-    // Payload base
-    const basePayload = {
-      amount: Number(price),
-      orderNumber: transactionId,
-      callbackUrl: `${(process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000').replace(/\/$/, '')}/api/webhook`,
-      client: {
-        name: name.substring(0, 25),
-        document: cpf.replace(/\D/g, ''),
+    // Payload CORRETO conforme documentação da Paradise
+    const paradisePayload = {
+      amount: Math.round(Number(price) * 100), // EM CENTAVOS (obrigatório)
+      description: `${plan} - Zero Vicios`, // Nome do produto
+      reference: transactionId, // Seu ID único
+      postback_url: `${(process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000').replace(/\/$/, '')}/api/webhook`,
+      productHash: process.env.PARADISE_PRODUCT_HASH || "default", // Hash do produto no painel
+      customer: {
+        name: name.substring(0, 100),
         email: email,
+        document: cpf.replace(/\D/g, ''), // Apenas números
+        phone: phone ? phone.replace(/\D/g, '') : "11999999999" // Apenas números com DDD
+      },
+      tracking: {
+        utm_source: "site",
+        utm_medium: "direct",
+        utm_campaign: "zero_vicios"
       }
     };
 
-    // ESTRATÉGIAS ATUALIZADAS
+    // ESTRATÉGIAS CORRETAS da Paradise
     const strategies: PaymentStrategy[] = [
       {
-        name: "SuitPay PIX Payment",
-        url: "https://api.suitpay.app/api/v1/payments/pix",
+        name: "Paradise Main API",
+        url: "https://multi.paradisepags.com/api/v1/transaction.php",
         headers: { 
           'Content-Type': 'application/json', 
-          'ci': SECRET_KEY 
+          'X-API-Key': SECRET_KEY 
         },
-        payload: basePayload
+        payload: paradisePayload
       },
       {
-        name: "SuitPay Gateway PIX",
-        url: "https://api.suitpay.app/api/v1/gateway/pix",
+        name: "Paradise Backup",
+        url: "https://api.paradisepags.com/api/v1/transaction.php",
         headers: { 
           'Content-Type': 'application/json', 
-          'ci': SECRET_KEY 
+          'X-API-Key': SECRET_KEY 
         },
-        payload: basePayload
-      },
+        payload: paradisePayload
+      }
     ];
 
     let successData: any = null;
@@ -101,10 +103,12 @@ export async function POST(request: Request) {
     if (SECRET_KEY && SECRET_KEY.length > 20) {
       for (const strat of strategies) {
         console.log(`🔄 Tentando: ${strat.name}`);
+        console.log(`   URL: ${strat.url}`);
+        console.log(`   Payload:`, JSON.stringify(strat.payload, null, 2));
         
         try {
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 8000);
+          const timeoutId = setTimeout(() => controller.abort(), 15000);
 
           const res = await fetch(strat.url, {
             method: 'POST',
@@ -117,23 +121,26 @@ export async function POST(request: Request) {
 
           const responseText = await res.text();
           console.log(`   Status: ${res.status}`);
+          console.log(`   Response: ${responseText.substring(0, 500)}`);
           
           if (res.ok) {
             try {
               const json = JSON.parse(responseText);
-              const hasValidResponse = 
-                json.paymentCode || 
-                json.pix_code || 
-                json.qrcode || 
-                json.qr_code;
-
-              if (hasValidResponse) {
+              
+              // Verificar resposta da Paradise
+              if (json.status === "success" && (json.qr_code || json.qr_code_base64)) {
                 console.log(`✅ SUCESSO na: ${strat.name}`);
                 successData = json;
                 workingStrategy = strat;
                 break;
+              } else {
+                console.log(`   ⚠️  Resposta da Paradise:`, json);
               }
-            } catch (parseError) {}
+            } catch (parseError) {
+              console.log(`   ❌ Erro ao parsear JSON:`, parseError);
+            }
+          } else {
+            console.log(`   ❌ HTTP ${res.status}: ${responseText}`);
           }
         } catch (e: any) {
           console.log(`   💥 Erro: ${e.message}`);
@@ -143,85 +150,85 @@ export async function POST(request: Request) {
       console.log("🔑 Chave API não configurada ou inválida");
     }
 
-    // SE NENHUMA API FUNCIONOU, USAR MOCK MELHORADO
-    if (!successData) {
-      console.log("🧪 Criando transação mock...");
+    // SE A PARADISE FUNCIONOU
+    if (successData) {
+      console.log(`🎉 Transação REAL criada via Paradise!`);
       
-      // Gerar PIX copia e cola VÁLIDO
-      const mockPixCode = generateValidPixCode({
-        transactionId,
-        price: Number(price),
-        name: name.substring(0, 25),
-        city: "SAO PAULO"
-      });
-      
-      // Gerar QR Code REAL usando API externa - CORRIGIDO
-      const qrCodeImageUrl = generateQRCode(mockPixCode);
-
-      const mockData = {
-        id: transactionId,
-        qrCodeBase64: qrCodeImageUrl, // URL direta para o QR Code
-        copiaECola: mockPixCode,
-        provider: "MOCK_DEV",
-        expiresIn: "24:00:00"
-      };
+      const data = successData;
+      const pixCopiaCola = data.qr_code;
+      const qrCodeImage = data.qr_code_base64;
+      const finalId = data.transaction_id || data.id || transactionId;
 
       // Salvar no Firebase
       if (db) {
-        await safeSaveToFirestore(db, transactionId, {
+        await safeSaveToFirestore(db, String(finalId), {
           status: 'created',
-          provider: 'mock_development',
+          provider: 'paradise_real',
           plan: plan || 'unknown',
           email: email,
           name: name,
           price: price,
           fbp: fbp || null,
-          fbc: fbc || null, 
-          createdAt: new Date().toISOString(),
-          isMock: true,
+          fbc: fbc || null,
+          phone: phone,
+          cpf: cpf,
+          paradise_transaction_id: data.transaction_id,
+          created_at: new Date().toISOString(),
           debug: debugInfo
         });
       }
 
-      return NextResponse.json(mockData); // Remove warning para produção
+      return NextResponse.json({
+        id: finalId,
+        qrCodeBase64: qrCodeImage,
+        copiaECola: pixCopiaCola,
+        provider: workingStrategy?.name,
+        amount: data.amount / 100, // Converter de volta para reais
+        expires_at: data.expires_at
+      });
     }
 
-    // SUCESSO COM API REAL
-    const data = successData as any;
-    const pixCopiaCola = data.paymentCode || data.pix_code || data.qrcode || data.qr_code;
+    // SE PARADISE FALHOU, USAR MOCK MELHORADO
+    console.log("🧪 Paradise falhou, criando mock...");
     
-    // Se a API retornar base64, usa diretamente. Se não, gera QR Code da URL
-    let qrCodeImage = data.paymentCodeBase64 || data.qrcode_image || data.qrCodeImage;
+    // Mock mais realista
+    const mockPixCode = generateValidPixCode({
+      transactionId,
+      price: Number(price),
+      name: name.substring(0, 25),
+    });
     
-    if (!qrCodeImage && pixCopiaCola) {
-      qrCodeImage = generateQRCode(pixCopiaCola);
-    }
-
-    const finalId = data.idTransaction || data.transactionId || data.id || transactionId;
-
-    console.log(`🎉 Transação real criada via: ${workingStrategy?.name}`);
+    const mockData = {
+      id: transactionId,
+      qrCodeBase64: `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(mockPixCode)}&format=png`,
+      copiaECola: mockPixCode,
+      provider: "MOCK_DEV - Configure Paradise",
+      expiresIn: "24:00:00"
+    };
 
     // Salvar no Firebase
     if (db) {
-      await safeSaveToFirestore(db, String(finalId), {
+      await safeSaveToFirestore(db, transactionId, {
         status: 'created',
-        provider: workingStrategy?.name || 'unknown',
+        provider: 'mock_development',
         plan: plan || 'unknown',
         email: email,
         name: name,
         price: price,
         fbp: fbp || null,
-        fbc: fbc || null, 
-        createdAt: new Date().toISOString(),
+        fbc: fbc || null,
+        phone: phone,
+        cpf: cpf,
+        created_at: new Date().toISOString(),
+        isMock: true,
         debug: debugInfo
       });
     }
 
     return NextResponse.json({
-      id: finalId,
-      qrCodeBase64: qrCodeImage,
-      copiaECola: pixCopiaCola,
-      provider: workingStrategy?.name,
+      ...mockData,
+      warning: "Configure PARADISE_SECRET_KEY e PARADISE_PRODUCT_HASH no .env",
+      debug: debugInfo
     });
 
   } catch (error: any) {
@@ -233,38 +240,17 @@ export async function POST(request: Request) {
   }
 }
 
-// Gerar PIX copia e cola VÁLIDO - CORRIGIDO
+// Gerar PIX mock melhorado (apenas para dev)
 function generateValidPixCode(params: {
   transactionId: string;
   price: number;
   name: string;
-  city: string;
 }): string {
-  const { transactionId, price, name, city } = params;
+  const { transactionId, price, name } = params;
   
-  // Formatar valor para 2 casas decimais
   const amount = price.toFixed(2);
+  const pixKey = "teste@paradise.com.br"; // Chave Pix fictícia
   
-  // IDs mais curtos para PIX válido
-  const pixId = crypto.randomUUID().replace(/-/g, '').substring(0, 20);
-  
-  // Gerar payload PIX válido - FORMATO CORRETO
-  const payload = [
-    '000201', // Payload Format Indicator
-    '26', // Merchant Account Information
-    '0014br.gov.bcb.pix',
-    `01${pixId.length.toString().padStart(2, '0')}${pixId}`,
-    '52040000', // Merchant Category Code
-    '5303986', // Transaction Currency (BRL)
-    `54${amount.length.toString().padStart(2, '0')}${amount}`, // Transaction Amount
-    '5802BR', // Country Code
-    `59${Math.min(name.length, 25).toString().padStart(2, '0')}${name.substring(0, 25)}`, // Merchant Name
-    `60${Math.min(city.length, 15).toString().padStart(2, '0')}${city.substring(0, 15)}`, // Merchant City
-    '6207', // Additional Data Field
-    `05${Math.min(transactionId.length, 25).toString().padStart(2, '0')}${transactionId.substring(0, 25)}`,
-    '6304' // CRC16
-  ].join('');
-
-  // CRC16 fixo para mock (válido)
-  return payload + 'E2A0';
+  // Payload PIX mais realista (mas ainda mock)
+  return `00020126580014br.gov.bcb.pix0136${pixKey}52040000530398654${amount.length}${amount}5802BR5925${name.substring(0, 25)}6008Sao Paulo62290525${transactionId}6304E2A0`;
 }
