@@ -392,7 +392,7 @@ export default function HomePage() {
             <div className="bg-white border-2 border-amber-400 rounded-lg shadow-2xl p-6 ring-4 ring-amber-400 ring-opacity-30 transform md:-translate-y-6 h-full flex flex-col">
               <span className="text-base mx-auto bg-amber-400 text-black font-bold py-1 px-4 rounded-full uppercase">Mais Vendido</span>
               <img
-                src="https://i.imgur.com/aJoKk1u.png"
+                src="https://i.imgur.com/pNINamC.png"
                 alt="Kit 5 Meses"
                 className="w-full h-auto object-contain mx-auto mb-4 rounded-lg"
               />
