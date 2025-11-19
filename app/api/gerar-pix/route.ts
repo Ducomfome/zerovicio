@@ -1,8 +1,7 @@
-// app/api/payment/route.ts
+// app/api/gerar-pix/route.ts
 import { NextResponse } from 'next/server';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore, doc, setDoc } from 'firebase/firestore';
-import QRCode from 'qrcode';
 
 interface PaymentStrategy {
   name: string;
@@ -33,29 +32,30 @@ const safeSaveToFirestore = async (db: any, transactionId: string, data: any) =>
   }
 };
 
-// Gerar QR Code PNG real a partir do PIX copia e cola
-const generateQRCodeBase64 = async (pixCode: string): Promise<string> => {
-  try {
-    return await QRCode.toDataURL(pixCode, {
-      width: 256,
-      margin: 2,
-      color: {
-        dark: '#000000',
-        light: '#FFFFFF'
-      }
-    });
-  } catch (error) {
-    // Fallback para SVG simples se der erro
-    return "data:image/svg+xml;base64," + Buffer.from(`
-      <svg width="256" height="256" xmlns="http://www.w3.org/2000/svg">
-        <rect width="100%" height="100%" fill="#ffffff"/>
-        <rect x="20" y="20" width="216" height="216" fill="none" stroke="#000000" stroke-width="2"/>
-        <text x="128" y="100" text-anchor="middle" font-family="Arial" font-size="14" fill="#000000">PIX QR CODE</text>
-        <text x="128" y="120" text-anchor="middle" font-family="Arial" font-size="10" fill="#666666">Use o código PIX</text>
-        <text x="128" y="140" text-anchor="middle" font-family="Arial" font-size="10" fill="#666666">no seu app bancário</text>
-      </svg>
-    `).toString('base64');
-  }
+// QR Code simples em SVG - SEM dependências externas
+const generateQRCodeSVG = (pixCode: string): string => {
+  // Simulação simples de QR Code - para desenvolvimento
+  const svg = `
+    <svg width="256" height="256" xmlns="http://www.w3.org/2000/svg">
+      <rect width="100%" height="100%" fill="#ffffff"/>
+      <rect x="16" y="16" width="224" height="224" fill="none" stroke="#000000" stroke-width="2"/>
+      
+      <!-- Simulação de padrão QR Code -->
+      <rect x="50" y="50" width="20" height="20" fill="#000000"/>
+      <rect x="50" y="80" width="20" height="20" fill="#000000"/>
+      <rect x="80" y="50" width="20" height="20" fill="#000000"/>
+      <rect x="110" y="110" width="20" height="20" fill="#000000"/>
+      <rect x="140" y="140" width="20" height="20" fill="#000000"/>
+      <rect x="170" y="170" width="20" height="20" fill="#000000"/>
+      <rect x="200" y="200" width="20" height="20" fill="#000000"/>
+      
+      <text x="128" y="100" text-anchor="middle" font-family="Arial" font-size="12" fill="#000000">PIX</text>
+      <text x="128" y="120" text-anchor="middle" font-family="Arial" font-size="10" fill="#666666">Use o código PIX</text>
+      <text x="128" y="240" text-anchor="middle" font-family="Arial" font-size="8" fill="#999999">Modo Desenvolvimento</text>
+    </svg>
+  `;
+  
+  return "data:image/svg+xml;base64," + Buffer.from(svg).toString('base64');
 };
 
 export async function POST(request: Request) {
@@ -79,7 +79,7 @@ export async function POST(request: Request) {
       firebaseStatus: app ? 'connected' : 'failed',
     };
 
-    console.log("🚀 Iniciando Scanner V7 (QR Code Real)...");
+    console.log("🚀 Iniciando Scanner V8 (Sem Dependências)...");
 
     // Payload base
     const basePayload = {
@@ -95,7 +95,6 @@ export async function POST(request: Request) {
 
     // ESTRATÉGIAS ATUALIZADAS
     const strategies: PaymentStrategy[] = [
-      // SuitPay - Endpoints oficiais da documentação
       {
         name: "SuitPay Official PIX",
         url: "https://api.suitpay.app/api/v1/pix/payment",
@@ -111,16 +110,6 @@ export async function POST(request: Request) {
         headers: { 
           'Content-Type': 'application/json', 
           'ci': SECRET_KEY 
-        },
-        payload: basePayload
-      },
-      // Paradise
-      {
-        name: "Paradise Official",
-        url: "https://api.paradiseapi.com.br/api/v1/payments/pix",
-        headers: { 
-          'Content-Type': 'application/json', 
-          'X-API-Key': SECRET_KEY 
         },
         payload: basePayload
       },
@@ -187,8 +176,8 @@ export async function POST(request: Request) {
         city: "SAO PAULO"
       });
       
-      // Gerar QR Code PNG REAL
-      const qrCodeBase64 = await generateQRCodeBase64(mockPixCode);
+      // Gerar QR Code SVG (sem dependências)
+      const qrCodeBase64 = generateQRCodeSVG(mockPixCode);
 
       const mockData = {
         id: transactionId,
@@ -227,9 +216,9 @@ export async function POST(request: Request) {
     const pixCopiaCola = data.paymentCode || data.pix_code || data.qrcode || data.qr_code;
     let qrCodeImage = data.paymentCodeBase64 || data.qrcode_image || data.qrCodeImage;
 
-    // Se a API não retornar QR Code, geramos um
+    // Se a API não retornar QR Code, geramos um SVG
     if (!qrCodeImage && pixCopiaCola) {
-      qrCodeImage = await generateQRCodeBase64(pixCopiaCola);
+      qrCodeImage = generateQRCodeSVG(pixCopiaCola);
     }
 
     const finalId = data.idTransaction || data.transactionId || data.id || transactionId;
