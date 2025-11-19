@@ -24,16 +24,20 @@ export async function POST(request: Request) {
     const app = initFirebase();
     const db = getFirestore(app);
     
-    // 1. CREDENCIAIS PARADISE PAGS (SUITPAY)
-    const RECIPIENT_ID = process.env.PARADISE_RECIPIENT_ID; 
-    const SECRET_KEY = process.env.PARADISE_SECRET_KEY;    
+    // 1. CREDENCIAIS PARADISE PAGS
+    // .trim() é essencial para evitar erros de "Access Denied" por espaço vazio
+    const RECIPIENT_ID = (process.env.PARADISE_RECIPIENT_ID || '').trim(); 
+    const SECRET_KEY = (process.env.PARADISE_SECRET_KEY || '').trim();    
+
+    // Debug: Mostra se as chaves estão sendo lidas (apenas o final para segurança)
+    console.log(`🔑 Chaves: StoreID=...${RECIPIENT_ID.slice(-4)} | Secret=...${SECRET_KEY.slice(-4)}`);
 
     if (!RECIPIENT_ID || !SECRET_KEY) {
-      return NextResponse.json({ error: 'Credenciais de API não configuradas' }, { status: 500 });
+      return NextResponse.json({ error: 'Credenciais não configuradas na Vercel' }, { status: 500 });
     }
 
     const body = await request.json();
-    const { name, email, cpf, price, fbp, fbc, plan } = body;
+    const { name, email, cpf, price, plan, fbp, fbc } = body;
 
     if (!name || !cpf || !price) {
        return NextResponse.json({ error: 'Dados incompletos' }, { status: 400 });
@@ -57,39 +61,40 @@ export async function POST(request: Request) {
       }
     };
 
-    console.log("🚀 Enviando para Gateway...", JSON.stringify(paymentPayload));
+    console.log("🚀 Enviando Payload...", JSON.stringify(paymentPayload));
 
-    // 2. URL CORRIGIDA (SUITPAY / PARADISE)
-    // A Paradise usa a infraestrutura da SuitPay. Essa é a URL padrão que funciona para ambas.
+    // 2. CONFIGURAÇÃO ESPECÍFICA PARADISE PAGS
+    // Baseado no print: "Use esta chave no header X-API-Key"
     const API_URL = "https://ws.suitpay.app/api/v1/gateway/request-qrcode";
-
+    
     const gatewayResponse = await fetch(API_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'ci': RECIPIENT_ID, 
-        'cs': SECRET_KEY   
+        'X-API-Key': SECRET_KEY, // AQUI ESTAVA O SEGREDO! (Antes era 'cs')
+        'ci': RECIPIENT_ID       // Enviamos o StoreID como identificador
       },
       body: JSON.stringify(paymentPayload)
     });
 
-    // 3. DEBUG INTELIGENTE (Para não quebrar com erro <DOCTYP...)
     const responseText = await gatewayResponse.text();
-    console.log("📩 Resposta Bruta do Gateway:", responseText);
+    console.log("📩 Resposta do Gateway (Status " + gatewayResponse.status + "):", responseText);
 
     let data;
     try {
         data = JSON.parse(responseText);
     } catch (e) {
-        console.error("❌ A API retornou HTML ou Texto inválido, verifique a URL ou Credenciais.");
-        return NextResponse.json({ error: 'Erro de comunicação com o Gateway', rawResponse: responseText }, { status: 502 });
+        return NextResponse.json({ error: 'Resposta inválida do Gateway', rawResponse: responseText }, { status: 502 });
+    }
+
+    if (gatewayResponse.status === 403 || gatewayResponse.status === 401) {
+        return NextResponse.json({ error: 'Acesso Negado. Verifique se a Chave Secreta na Vercel começa com "sk_"', details: data }, { status: 403 });
     }
 
     if (!gatewayResponse.ok || data.response === 'Error') {
-      return NextResponse.json({ error: 'Erro no processamento do Gateway', details: data }, { status: 500 });
+      return NextResponse.json({ error: 'Erro no processamento', details: data }, { status: 500 });
     }
 
-    // 4. TRATAMENTO DA RESPOSTA
     const pixCopiaCola = data.paymentCode || data.pix_code || data.qrcode_text;
     const qrCodeImage = data.paymentCodeBase64 || data.qrcode_image;
     const finalId = data.idTransaction || transactionId;
