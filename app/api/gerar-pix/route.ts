@@ -25,15 +25,13 @@ export async function POST(request: Request) {
     const db = getFirestore(app);
     
     // 1. CREDENCIAIS PARADISE PAGS
-    // .trim() é essencial para evitar erros de "Access Denied" por espaço vazio
     const RECIPIENT_ID = (process.env.PARADISE_RECIPIENT_ID || '').trim(); 
     const SECRET_KEY = (process.env.PARADISE_SECRET_KEY || '').trim();    
 
-    // Debug: Mostra se as chaves estão sendo lidas (apenas o final para segurança)
-    console.log(`🔑 Chaves: StoreID=...${RECIPIENT_ID.slice(-4)} | Secret=...${SECRET_KEY.slice(-4)}`);
+    console.log(`🔑 Tentando Auth com: ${RECIPIENT_ID} | ${SECRET_KEY.slice(0, 5)}...`);
 
     if (!RECIPIENT_ID || !SECRET_KEY) {
-      return NextResponse.json({ error: 'Credenciais não configuradas na Vercel' }, { status: 500 });
+      return NextResponse.json({ error: 'Credenciais ausentes na Vercel' }, { status: 500 });
     }
 
     const body = await request.json();
@@ -63,32 +61,33 @@ export async function POST(request: Request) {
 
     console.log("🚀 Enviando Payload...", JSON.stringify(paymentPayload));
 
-    // 2. CONFIGURAÇÃO ESPECÍFICA PARADISE PAGS
-    // Baseado no print: "Use esta chave no header X-API-Key"
-    const API_URL = "https://ws.suitpay.app/api/v1/gateway/request-qrcode";
+    // 2. URL CORRETA PARA PARADISE PAGS
+    // Usamos a URL direta deles pois seu ID é "store_..."
+    const API_URL = "https://api.paradisepags.com/v1/gateway/request-qrcode";
     
     const gatewayResponse = await fetch(API_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-API-Key': SECRET_KEY, // AQUI ESTAVA O SEGREDO! (Antes era 'cs')
-        'ci': RECIPIENT_ID       // Enviamos o StoreID como identificador
+        'X-API-Key': SECRET_KEY, // Conforme seu print (Chave Secreta)
+        'ci': RECIPIENT_ID       // ID da Conta (Store ID)
       },
       body: JSON.stringify(paymentPayload)
     });
 
     const responseText = await gatewayResponse.text();
-    console.log("📩 Resposta do Gateway (Status " + gatewayResponse.status + "):", responseText);
+    console.log("📩 Resposta Gateway:", responseText);
 
     let data;
     try {
         data = JSON.parse(responseText);
     } catch (e) {
-        return NextResponse.json({ error: 'Resposta inválida do Gateway', rawResponse: responseText }, { status: 502 });
+        return NextResponse.json({ error: 'Erro 502: Gateway não retornou JSON', rawResponse: responseText }, { status: 502 });
     }
 
+    // Se der erro de acesso, retornamos o detalhe para o front ver
     if (gatewayResponse.status === 403 || gatewayResponse.status === 401) {
-        return NextResponse.json({ error: 'Acesso Negado. Verifique se a Chave Secreta na Vercel começa com "sk_"', details: data }, { status: 403 });
+        return NextResponse.json({ error: 'Erro de Acesso (403/401)', details: data, message: "Verifique se as chaves na Vercel não tem espaços extras" }, { status: 403 });
     }
 
     if (!gatewayResponse.ok || data.response === 'Error') {
@@ -101,7 +100,7 @@ export async function POST(request: Request) {
 
     await setDoc(doc(db, "transactions", String(finalId)), {
         status: 'created',
-        provider: 'paradise_suitpay',
+        provider: 'paradise',
         plan: plan || 'unknown',
         email: email,
         name: name,
