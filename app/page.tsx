@@ -323,7 +323,7 @@ export default function HomePage() {
         <div className="max-w-5xl mx-auto px-4 flex flex-col md:flex-row items-center gap-12">
           <div className="w-full md:w-1/2">
             <img
-              src="https://i.imgur.com/pNINamC.png"
+              src="https://i.imgur.com/EQAYRKu.png"
               alt="Frascos Zero Vicios"
               className="w-full h-auto object-contain rounded-lg shadow-lg"
             />
