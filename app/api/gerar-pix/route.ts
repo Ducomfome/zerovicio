@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore, doc, setDoc } from 'firebase/firestore';
 
-// Define a interface para as estratégias (Corrige erro de Build)
+// Interface para evitar erro de build
 interface PaymentStrategy {
   name: string;
   url: string;
@@ -19,15 +19,11 @@ const initFirebase = () => {
 };
 
 export async function POST(request: Request) {
-  // Tipagem explícita para evitar erro "Implicit Any" no build
   let logTentativas: string[] = [];
 
   try {
     const app = initFirebase();
-    if (!app) {
-        // Em build time as vezes o env não tá pronto, retornamos erro runtime mas não quebramos o build
-        return NextResponse.json({ error: 'Erro Config Firebase' }, { status: 500 });
-    }
+    if (!app) return NextResponse.json({ error: 'Config Firebase' }, { status: 500 });
     const db = getFirestore(app);
     
     const RECIPIENT_ID = (process.env.PARADISE_RECIPIENT_ID || '').trim(); 
@@ -37,9 +33,6 @@ export async function POST(request: Request) {
 
     const body = await request.json();
     const { name, email, cpf, price, plan, fbp, fbc } = body;
-
-    const baseUrl = (process.env.NEXT_PUBLIC_BASE_URL || '').replace(/\/$/, '');
-    const webhookUrl = `${baseUrl}/api/webhook`;
     const transactionId = crypto.randomUUID();
 
     const paymentPayload = {
@@ -48,7 +41,7 @@ export async function POST(request: Request) {
       amount: Number(price),
       shippingAmount: 0.0,
       username: "checkout_site",
-      callbackUrl: webhookUrl,
+      callbackUrl: `${(process.env.NEXT_PUBLIC_BASE_URL || '').replace(/\/$/, '')}/api/webhook`,
       client: {
         name: name,
         document: cpf.replace(/\D/g, ''),
@@ -56,34 +49,30 @@ export async function POST(request: Request) {
       }
     };
 
-    console.log("🚀 Iniciando Scanner V2 (Blindado contra Erros de Build)...");
+    console.log("🚀 Iniciando Scanner V3 (Foco na Paradise)...");
 
-    // LISTA DE URLS COM TIPAGEM EXPLÍCITA
+    // ESTRATÉGIAS: Variações da URL da Paradise + X-API-Key
     const strategies: PaymentStrategy[] = [
         {
-            name: "1. SuitPay (X-API-Key)",
-            url: "https://ws.suitpay.app/api/v1/gateway/request-qrcode",
+            name: "1. Paradise API (Com /api/v1)",
+            url: "https://api.paradisepags.com/api/v1/gateway/request-qrcode",
             headers: { 'Content-Type': 'application/json', 'X-API-Key': SECRET_KEY }
         },
         {
-            name: "2. SuitPay (Bearer Token)",
-            url: "https://ws.suitpay.app/api/v1/gateway/request-qrcode",
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SECRET_KEY}` }
-        },
-        {
-            name: "3. Paradise .com.br (X-API-Key)",
-            url: "https://api.paradisepags.com.br/v1/gateway/request-qrcode",
+            name: "2. Paradise .com.br (Com /api/v1)",
+            url: "https://api.paradisepags.com.br/api/v1/gateway/request-qrcode",
             headers: { 'Content-Type': 'application/json', 'X-API-Key': SECRET_KEY }
         },
         {
-            name: "4. Paradise API (Sem V1)",
-            url: "https://api.paradisepags.com/gateway/request-qrcode",
+            name: "3. Paradise Direto (Sem api subdomain)",
+            url: "https://paradisepags.com/api/v1/gateway/request-qrcode",
             headers: { 'Content-Type': 'application/json', 'X-API-Key': SECRET_KEY }
         },
         {
-            name: "5. SuitPay Invertido (ci=sk, cs=store)",
+             // Última tentativa na SuitPay mas com header 'ci' sendo o SECRET (alguns sistemas invertem)
+            name: "4. SuitPay (CI = Secret)",
             url: "https://ws.suitpay.app/api/v1/gateway/request-qrcode",
-            headers: { 'Content-Type': 'application/json', 'ci': SECRET_KEY, 'cs': RECIPIENT_ID }
+            headers: { 'Content-Type': 'application/json', 'ci': SECRET_KEY, 'cs': SECRET_KEY }
         }
     ];
 
@@ -99,36 +88,34 @@ export async function POST(request: Request) {
             });
             
             const text = await res.text();
-            const status = res.status;
-            console.log(`   Status: ${status}`);
+            console.log(`   Status: ${res.status}`);
 
             if (res.ok) {
                 try {
                     const json = JSON.parse(text);
-                    // Verifica se tem algum campo de código PIX
+                    // Verifica se tem QR Code
                     if (json.paymentCode || json.qrcode_text || json.pix_code) {
-                        console.log(`✅ SUCESSO NA ESTRATÉGIA: ${strat.name}`);
+                        console.log(`✅ ACHAMOS! Funcionou na: ${strat.name}`);
                         successData = json;
                         break;
                     }
                 } catch (e) {}
             }
-            logTentativas.push(`${strat.name}: ${status} - ${text.slice(0, 50)}...`);
+            logTentativas.push(`${strat.name}: ${res.status}`);
         } catch (e: any) {
-            logTentativas.push(`${strat.name}: Erro Rede - ${e.message}`);
+            logTentativas.push(`${strat.name}: Erro Rede`);
         }
     }
 
     if (!successData) {
-        console.error("❌ Todas as tentativas falharam.");
         return NextResponse.json({ 
-            error: 'Falha total na autenticação.', 
-            hint: 'Verifique se suas chaves são de Gateway (Cobrança) e não apenas de Conta (Split).',
+            error: 'Falha na conexão.', 
+            message: 'Nenhuma URL da Paradise aceitou a chave. Verifique se sua conta Paradise está ativa para API.',
             logs: logTentativas 
         }, { status: 502 });
     }
 
-    // SUCESSO - Cast para 'any' para o TS não reclamar
+    // SUCESSO
     const data = successData as any;
     const pixCopiaCola = data.paymentCode || data.pix_code || data.qrcode_text;
     const qrCodeImage = data.paymentCodeBase64 || data.qrcode_image;
@@ -136,7 +123,7 @@ export async function POST(request: Request) {
 
     await setDoc(doc(db, "transactions", String(finalId)), {
         status: 'created',
-        provider: 'paradise_scanner_v2',
+        provider: 'paradise_v3',
         plan: plan || 'unknown',
         email: email,
         name: name,
@@ -153,7 +140,6 @@ export async function POST(request: Request) {
     });
 
   } catch (error: any) {
-    console.error('❌ ERRO CRÍTICO:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
