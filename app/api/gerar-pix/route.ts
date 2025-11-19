@@ -21,90 +21,97 @@ const initFirebase = () => {
 
 export async function POST(request: Request) {
   try {
-    // Inicializa o Firebase e o Token DENTRO da função para capturar erros de config
     const app = initFirebase();
     const db = getFirestore(app);
-    const PUSHIN_TOKEN = process.env.PUSHIN_TOKEN;
+    
+    // 1. CREDENCIAIS PARADISE PAGS
+    const RECIPIENT_ID = process.env.PARADISE_RECIPIENT_ID; // ID da sua Conta
+    const SECRET_KEY = process.env.PARADISE_SECRET_KEY;     // Chave Secreta
 
-    // Validações de Ambiente
-    if (!PUSHIN_TOKEN) {
-      console.error("PUSHIN_TOKEN ausente");
-      return NextResponse.json({ error: 'Configuração de servidor incompleta (Token)' }, { status: 500 });
+    if (!RECIPIENT_ID || !SECRET_KEY) {
+      console.error("Credenciais Paradise Pags ausentes");
+      return NextResponse.json({ error: 'Configuração de API incompleta' }, { status: 500 });
     }
 
     const body = await request.json();
     const { name, email, cpf, price, fbp, fbc, plan } = body;
 
-    // Validação dos dados recebidos
     if (!name || !cpf || !price) {
-       return NextResponse.json({ error: 'Dados incompletos (Nome, CPF ou Preço)' }, { status: 400 });
+       return NextResponse.json({ error: 'Dados incompletos' }, { status: 400 });
     }
 
-    const valueInCents = Math.round(Number(price) * 100); 
-    
-    // Garante que a URL não tenha barra no final para não duplicar (ex: .app//api)
+    // URL do seu Webhook
     const baseUrl = (process.env.NEXT_PUBLIC_BASE_URL || '').replace(/\/$/, '');
     const webhookUrl = `${baseUrl}/api/webhook`;
 
+    // 2. MONTAGEM DO PAYLOAD
+    const transactionId = crypto.randomUUID();
+
     const paymentPayload = {
-      value: valueInCents,
-      webhook_url: webhookUrl,
-      payer: {
+      requestNumber: transactionId,
+      dueDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      amount: Number(price),
+      shippingAmount: 0.0,
+      username: "checkout_site", // Pode ser um identificador fixo
+      callbackUrl: webhookUrl,
+      client: {
         name: name,
         document: cpf.replace(/\D/g, ''),
         email: email,
       }
     };
 
-    console.log("🚀 Enviando para PushinPay:", JSON.stringify(paymentPayload));
+    console.log("🚀 Enviando para Paradise Pags...", JSON.stringify(paymentPayload));
 
-    const pushinResponse = await fetch('https://api.pushinpay.com.br/api/pix/cashIn', {
+    // 3. URL DO ENDPOINT
+    // Se a Paradise tiver uma URL específica, confirme na documentação.
+    // Padrão de mercado para gateways desse tipo:
+    const API_URL = "https://api.paradisepags.com/v1/gateway/request-qrcode";
+
+    const gatewayResponse = await fetch(API_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${PUSHIN_TOKEN}`
+        'ci': RECIPIENT_ID, // Header padrão para "Recipient ID" ou "Client ID"
+        'cs': SECRET_KEY    // Header padrão para "Client Secret"
       },
       body: JSON.stringify(paymentPayload)
     });
 
-    const data = await pushinResponse.json();
+    const data = await gatewayResponse.json();
+    console.log("Retorno Gateway:", data);
 
-    if (!pushinResponse.ok) {
-      console.error('❌ Erro Resposta PushinPay:', data);
-      return NextResponse.json({ error: 'Erro na operadora de pagamento', details: data }, { status: 500 });
+    if (!gatewayResponse.ok) {
+      return NextResponse.json({ error: 'Erro na Paradise Pags', details: data }, { status: 500 });
     }
 
-    const transactionId = data.id;
+    // 4. TRATAMENTO DA RESPOSTA
+    // Verifica os campos possíveis de retorno (padrão SuitPay/Paradise)
+    const pixCopiaCola = data.paymentCode || data.pix_code || data.qrcode_text;
+    const qrCodeImage = data.paymentCodeBase64 || data.qrcode_image;
+    const finalId = data.idTransaction || transactionId;
 
-    // Tenta salvar no Firestore
-    try {
-        await setDoc(doc(db, "transactions", transactionId), {
-            status: 'created',
-            plan: plan || 'unknown',
-            email: email,
-            name: name,
-            price: price,
-            fbp: fbp || null,
-            fbc: fbc || null, 
-            createdAt: new Date().toISOString()
-        });
-    } catch (firestoreError) {
-        console.error("❌ Erro ao salvar no Firestore (Pix gerado, mas não salvo):", firestoreError);
-        // Não vamos travar o usuário se o banco falhar, mas logamos o erro.
-        // O ideal seria retornar erro, mas o usuário já tem o pix na mão.
-    }
+    // Salva no Firestore
+    await setDoc(doc(db, "transactions", String(finalId)), {
+        status: 'created',
+        provider: 'paradise',
+        plan: plan || 'unknown',
+        email: email,
+        name: name,
+        price: price,
+        fbp: fbp || null,
+        fbc: fbc || null, 
+        createdAt: new Date().toISOString()
+    });
 
     return NextResponse.json({
-      id: transactionId,
-      qrCodeBase64: data.qr_code_base64,
-      copiaECola: data.qr_code
+      id: finalId,
+      qrCodeBase64: qrCodeImage || null,
+      copiaECola: pixCopiaCola
     });
 
   } catch (error: any) {
-    console.error('❌ ERRO CRÍTICO NO SERVIDOR:', error);
-    return NextResponse.json({ 
-        error: 'Erro interno no servidor', 
-        message: error.message 
-    }, { status: 500 });
+    console.error('❌ ERRO CRÍTICO:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
