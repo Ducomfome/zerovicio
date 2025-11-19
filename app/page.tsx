@@ -552,45 +552,39 @@ export default function HomePage() {
                 </div>
               )}
 
-              {/* ESTADO 3: QR CODE */}
-              {checkoutState === 'pix' && pixData && (
-                <div className="text-center space-y-6">
-                  <div className="bg-gray-100 p-4 rounded-lg inline-block">
-                    
-                    {/* CORREÇÃO: Verifica se o base64 já tem o prefixo 'data:'. Se tiver, usa ele. Se não, adiciona. */}
-                    {pixData.qrCodeBase64 ? (
-                        <img 
-                            src={pixData.qrCodeBase64.startsWith('data:') ? pixData.qrCodeBase64 : `data:image/png;base64,${pixData.qrCodeBase64}`} 
-                            alt="QR Code Pix" 
-                            className="w-48 h-48 mx-auto" 
-                        />
-                    ) : (
-                        // FALLBACK: Usa a API qrserver.com para gerar imagem a partir do código copia e cola
-                        <img 
-                          src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(pixData.copiaECola)}`} 
-                          alt="QR Code Pix Gerado Automaticamente" 
-                          className="w-48 h-48 mx-auto" 
-                        />
-                    )}
-                  </div>
-                  
-                  <div>
-                    <p className="text-sm text-gray-600 mb-2">Copie o código abaixo e pague no app do seu banco:</p>
-                    <div className="flex items-center gap-2">
-                      <input 
-                        readOnly 
-                        value={pixData.copiaECola} 
-                        className="w-full bg-gray-100 border border-gray-300 text-gray-500 text-sm rounded-lg p-2.5" 
-                      />
-                      <button onClick={handleCopyPix} className="bg-blue-500 hover:bg-blue-600 text-white p-2 rounded-lg">
-                        <DocumentDuplicateIcon className="w-5 h-5" />
-                      </button>
-                    </div>
-                  </div>
+{/* ESTADO 3: QR CODE */}
+{checkoutState === 'pix' && pixData && (
+  <div className="text-center space-y-6">
+    <div className="bg-gray-100 p-4 rounded-lg inline-block">
+      {/* SEMPRE usa a URL do QR Code */}
+      <img 
+        src={pixData.qrCodeBase64} 
+        alt="QR Code Pix" 
+        className="w-48 h-48 mx-auto" 
+        onError={(e) => {
+          // Fallback se a imagem não carregar
+          e.currentTarget.src = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(pixData.copiaECola)}`;
+        }}
+      />
+    </div>
+    
+    <div>
+      <p className="text-sm text-gray-600 mb-2">Copie o código abaixo e pague no app do seu banco:</p>
+      <div className="flex items-center gap-2">
+        <input 
+          readOnly 
+          value={pixData.copiaECola} 
+          className="w-full bg-gray-100 border border-gray-300 text-gray-500 text-sm rounded-lg p-2.5" 
+        />
+        <button onClick={handleCopyPix} className="bg-blue-500 hover:bg-blue-600 text-white p-2 rounded-lg">
+          <DocumentDuplicateIcon className="w-5 h-5" />
+        </button>
+      </div>
+    </div>
 
-                  <p className="text-xs text-gray-500 mt-4">Após o pagamento, você receberá o acesso no seu email.</p>
-                </div>
-              )}
+    <p className="text-xs text-gray-500 mt-4">Após o pagamento, você receberá o acesso no seu email.</p>
+  </div>
+)}
 
               {/* ESTADO 4: SUCESSO */}
               {checkoutState === 'success' && (
