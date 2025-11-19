@@ -4,7 +4,7 @@ import { getFirestore, doc, setDoc } from 'firebase/firestore';
 
 const initFirebase = () => {
   const configStr = process.env.NEXT_PUBLIC_FIREBASE_CONFIG;
-  if (!configStr) { console.error('❌ Firebase Config Missing'); return null; }
+  if (!configStr) return null;
   try {
     const firebaseConfig = JSON.parse(configStr);
     return !getApps().length ? initializeApp(firebaseConfig) : getApp();
@@ -12,17 +12,14 @@ const initFirebase = () => {
 };
 
 export async function POST(request: Request) {
-  let logErros: string[] = []; 
-  
   try {
     const app = initFirebase();
     if (!app) return NextResponse.json({ error: 'Erro Config Firebase' }, { status: 500 });
     const db = getFirestore(app);
     
-    const RECIPIENT_ID = (process.env.PARADISE_RECIPIENT_ID || '').trim(); 
     const SECRET_KEY = (process.env.PARADISE_SECRET_KEY || '').trim();    
 
-    if (!RECIPIENT_ID || !SECRET_KEY) return NextResponse.json({ error: 'Credenciais ausentes' }, { status: 500 });
+    if (!SECRET_KEY) return NextResponse.json({ error: 'Chave Secreta ausente' }, { status: 500 });
 
     const body = await request.json();
     const { name, email, cpf, price, plan, fbp, fbc } = body;
@@ -45,69 +42,62 @@ export async function POST(request: Request) {
       }
     };
 
-    console.log("🚀 Iniciando Teste de Força Bruta na SuitPay...");
+    console.log("🚀 Enviando para SuitPay (Modo X-API-Key Puro)...");
 
-    // ESTRATÉGIA ÚNICA: URL CERTA + TODOS OS HEADERS
-    // Sabemos que ws.suitpay.app existe (deu 403, não 404).
-    // Vamos mandar a chave em todos os lugares possíveis.
-    const strategy = {
-        url: "https://ws.suitpay.app/api/v1/gateway/request-qrcode",
-        headers: {
-            'Content-Type': 'application/json',
-            'ci': RECIPIENT_ID,       // Tenta como CI
-            'cs': SECRET_KEY,         // Tenta como CS
-            'X-API-Key': SECRET_KEY,  // Tenta como Header da Paradise
-            'store-id': RECIPIENT_ID  // Tenta como Store ID
-        }
-    };
-
-    console.log(`🔄 Tentando conectar em: ${strategy.url}`);
+    // ESTRATÉGIA: Obedecer estritamente o painel da Paradise.
+    // URL: Motor SuitPay
+    // Headers: APENAS Content-Type e X-API-Key. Sem 'ci' ou 'cs'.
+    const API_URL = "https://ws.suitpay.app/api/v1/gateway/request-qrcode";
     
-    const response = await fetch(strategy.url, {
-        method: 'POST',
-        headers: strategy.headers,
-        body: JSON.stringify(paymentPayload)
+    const gatewayResponse = await fetch(API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': SECRET_KEY
+      },
+      body: JSON.stringify(paymentPayload)
     });
-    
-    const text = await response.text();
-    console.log(`   STATUS: ${response.status}`);
-    console.log(`   RESPOSTA DO SERVIDOR: ${text}`); // ISSO É O OURO! Vai dizer o motivo do erro.
+
+    const responseText = await gatewayResponse.text();
+    console.log(`📩 Status: ${gatewayResponse.status}`);
+    console.log(`📩 Resposta: ${responseText}`);
 
     let data;
-    try { data = JSON.parse(text); } catch(e) {}
+    try { data = JSON.parse(responseText); } catch(e) {}
 
-    if (response.ok && data?.response !== 'Error') {
-        // SUCESSO!
-        const pixCopiaCola = (data as any).paymentCode || (data as any).pix_code || (data as any).qrcode_text;
-        const qrCodeImage = (data as any).paymentCodeBase64 || (data as any).qrcode_image;
-        const finalId = (data as any).idTransaction || transactionId;
-
-        await setDoc(doc(db, "transactions", String(finalId)), {
-            status: 'created',
-            provider: 'paradise_suitpay',
-            plan: plan || 'unknown',
-            email: email,
-            name: name,
-            price: price,
-            fbp: fbp || null,
-            fbc: fbc || null, 
-            createdAt: new Date().toISOString()
-        });
-
-        return NextResponse.json({
-            id: finalId,
-            qrCodeBase64: qrCodeImage || null,
-            copiaECola: pixCopiaCola
-        });
-    } else {
-        // FALHA
-        console.error("❌ Falha na conexão.");
+    if (gatewayResponse.status === 403 || gatewayResponse.status === 401) {
         return NextResponse.json({ 
-            error: `Erro ${response.status} na SuitPay`, 
-            serverMessage: text, // Mostra para você o que o servidor disse
-            message: "Verifique o log 'RESPOSTA DO SERVIDOR' na Vercel para saber o motivo exato."
-        }, { status: 502 });
+            error: 'Acesso Negado (403).', 
+            message: "A chave X-API-Key foi rejeitada. Confirme se copiou a 'Chave Secreta' inteira.",
+            details: data 
+        }, { status: 403 });
     }
+
+    if (!gatewayResponse.ok || data.response === 'Error') {
+      return NextResponse.json({ error: 'Erro no processamento', details: data }, { status: 500 });
+    }
+
+    const pixCopiaCola = data.paymentCode || data.pix_code || data.qrcode_text;
+    const qrCodeImage = data.paymentCodeBase64 || data.qrcode_image;
+    const finalId = data.idTransaction || transactionId;
+
+    await setDoc(doc(db, "transactions", String(finalId)), {
+        status: 'created',
+        provider: 'paradise_suitpay',
+        plan: plan || 'unknown',
+        email: email,
+        name: name,
+        price: price,
+        fbp: fbp || null,
+        fbc: fbc || null, 
+        createdAt: new Date().toISOString()
+    });
+
+    return NextResponse.json({
+      id: finalId,
+      qrCodeBase64: qrCodeImage || null,
+      copiaECola: pixCopiaCola
+    });
 
   } catch (error: any) {
     console.error('❌ ERRO CRÍTICO:', error);
