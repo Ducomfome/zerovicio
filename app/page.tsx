@@ -556,13 +556,19 @@ export default function HomePage() {
 {checkoutState === 'pix' && pixData && (
   <div className="text-center space-y-6">
     <div className="bg-gray-100 p-4 rounded-lg inline-block">
-      {/* SEMPRE usa a URL do QR Code */}
+      {/* CORREÇÃO AQUI: Tratamento do Base64 e Fallback robusto */}
       <img 
-        src={pixData.qrCodeBase64} 
+        src={
+          pixData.qrCodeBase64 
+            ? (pixData.qrCodeBase64.startsWith('data:image') 
+                ? pixData.qrCodeBase64 
+                : `data:image/png;base64,${pixData.qrCodeBase64}`)
+            : `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(pixData.copiaECola)}`
+        } 
         alt="QR Code Pix" 
         className="w-48 h-48 mx-auto" 
         onError={(e) => {
-          // Fallback se a imagem não carregar
+          // Se mesmo com o base64 der erro, força o gerador externo
           e.currentTarget.src = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(pixData.copiaECola)}`;
         }}
       />
@@ -574,15 +580,25 @@ export default function HomePage() {
         <input 
           readOnly 
           value={pixData.copiaECola} 
-          className="w-full bg-gray-100 border border-gray-300 text-gray-500 text-sm rounded-lg p-2.5" 
+          className="w-full bg-gray-100 border border-gray-300 text-gray-500 text-sm rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-blue-500" 
+          onClick={(e) => e.currentTarget.select()} // Facilita pro usuário selecionar ao clicar
         />
-        <button onClick={handleCopyPix} className="bg-blue-500 hover:bg-blue-600 text-white p-2 rounded-lg">
+        <button 
+          onClick={handleCopyPix} 
+          className="bg-blue-500 hover:bg-blue-600 text-white p-2.5 rounded-lg transition-colors"
+          title="Copiar código PIX"
+        >
           <DocumentDuplicateIcon className="w-5 h-5" />
         </button>
       </div>
     </div>
 
-    <p className="text-xs text-gray-500 mt-4">Após o pagamento, você receberá o acesso no seu email.</p>
+    <div className="bg-blue-50 p-3 rounded-md border border-blue-100 mt-4">
+        <p className="text-xs text-blue-800">
+            ⏳ O pagamento pode levar alguns segundos para ser confirmado. 
+            <br/>Verifique seu e-mail após pagar.
+        </p>
+    </div>
   </div>
 )}
 
