@@ -2,6 +2,13 @@ import { NextResponse } from 'next/server';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore, doc, setDoc } from 'firebase/firestore';
 
+// Define a interface para as estratégias (Corrige erro de Build)
+interface PaymentStrategy {
+  name: string;
+  url: string;
+  headers: Record<string, string>;
+}
+
 const initFirebase = () => {
   const configStr = process.env.NEXT_PUBLIC_FIREBASE_CONFIG;
   if (!configStr) return null;
@@ -12,11 +19,15 @@ const initFirebase = () => {
 };
 
 export async function POST(request: Request) {
+  // Tipagem explícita para evitar erro "Implicit Any" no build
   let logTentativas: string[] = [];
 
   try {
     const app = initFirebase();
-    if (!app) return NextResponse.json({ error: 'Erro Config Firebase' }, { status: 500 });
+    if (!app) {
+        // Em build time as vezes o env não tá pronto, retornamos erro runtime mas não quebramos o build
+        return NextResponse.json({ error: 'Erro Config Firebase' }, { status: 500 });
+    }
     const db = getFirestore(app);
     
     const RECIPIENT_ID = (process.env.PARADISE_RECIPIENT_ID || '').trim(); 
@@ -45,10 +56,10 @@ export async function POST(request: Request) {
       }
     };
 
-    console.log("🚀 Iniciando Scanner V2 de URLs...");
+    console.log("🚀 Iniciando Scanner V2 (Blindado contra Erros de Build)...");
 
-    // LISTA DE URLS PROVÁVEIS
-    const strategies = [
+    // LISTA DE URLS COM TIPAGEM EXPLÍCITA
+    const strategies: PaymentStrategy[] = [
         {
             name: "1. SuitPay (X-API-Key)",
             url: "https://ws.suitpay.app/api/v1/gateway/request-qrcode",
@@ -70,14 +81,13 @@ export async function POST(request: Request) {
             headers: { 'Content-Type': 'application/json', 'X-API-Key': SECRET_KEY }
         },
         {
-             // Tenta usar ci/cs mas com os valores trocados (vai que...)
             name: "5. SuitPay Invertido (ci=sk, cs=store)",
             url: "https://ws.suitpay.app/api/v1/gateway/request-qrcode",
             headers: { 'Content-Type': 'application/json', 'ci': SECRET_KEY, 'cs': RECIPIENT_ID }
         }
     ];
 
-    let successData = null;
+    let successData: any = null;
 
     for (const strat of strategies) {
         console.log(`🔄 Tentando: ${strat.name}`);
@@ -95,6 +105,7 @@ export async function POST(request: Request) {
             if (res.ok) {
                 try {
                     const json = JSON.parse(text);
+                    // Verifica se tem algum campo de código PIX
                     if (json.paymentCode || json.qrcode_text || json.pix_code) {
                         console.log(`✅ SUCESSO NA ESTRATÉGIA: ${strat.name}`);
                         successData = json;
@@ -109,23 +120,23 @@ export async function POST(request: Request) {
     }
 
     if (!successData) {
-        console.error("❌ Todas falharam.");
+        console.error("❌ Todas as tentativas falharam.");
         return NextResponse.json({ 
-            error: 'Não foi possível autenticar em nenhuma URL.', 
-            hint: 'Verifique no painel se existe uma aba "Gateway" ou "Integração" com chaves diferentes (Client ID / Client Secret). As chaves atuais parecem ser apenas de recebedor.',
+            error: 'Falha total na autenticação.', 
+            hint: 'Verifique se suas chaves são de Gateway (Cobrança) e não apenas de Conta (Split).',
             logs: logTentativas 
         }, { status: 502 });
     }
 
-    // SUCESSO
-    const data = successData;
-    const pixCopiaCola = (data as any).paymentCode || (data as any).pix_code || (data as any).qrcode_text;
-    const qrCodeImage = (data as any).paymentCodeBase64 || (data as any).qrcode_image;
-    const finalId = (data as any).idTransaction || transactionId;
+    // SUCESSO - Cast para 'any' para o TS não reclamar
+    const data = successData as any;
+    const pixCopiaCola = data.paymentCode || data.pix_code || data.qrcode_text;
+    const qrCodeImage = data.paymentCodeBase64 || data.qrcode_image;
+    const finalId = data.idTransaction || transactionId;
 
     await setDoc(doc(db, "transactions", String(finalId)), {
         status: 'created',
-        provider: 'paradise_scanner',
+        provider: 'paradise_scanner_v2',
         plan: plan || 'unknown',
         email: email,
         name: name,
