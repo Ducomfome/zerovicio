@@ -1,4 +1,3 @@
-// Arquivo: app/page.tsx
 "use client";
 
 import Image from "next/image";
@@ -27,10 +26,11 @@ const VIDEO_SOURCES: Record<VideoKey, string> = {
   test2: "https://pub-9ad786fb39ec4b43b2905a55edcb38d9.r2.dev/baixados%20(2).mp4",
 };
 
+// Trocamos os links quebrados por placehold.co que é mais estável
 const POSTER_SOURCES: Record<VideoKey, string> = {
-  vsl: "https://via.placeholder.com/1280x720.png?text=Capa+do+VSL",
-  test1: "https://via.placeholder.com/1280x720.png?text=Capa+Prova+1",
-  test2: "https://via.placeholder.com/1280x720.png?text=Capa+Prova+2",
+  vsl: "https://placehold.co/1280x720/png?text=Capa+do+VSL",
+  test1: "https://placehold.co/1280x720/png?text=Capa+Prova+1",
+  test2: "https://placehold.co/1280x720/png?text=Capa+Prova+2",
 };
 
 // Função auxiliar para pegar cookies (fbc/fbp) sem bibliotecas extras
@@ -189,7 +189,7 @@ export default function HomePage() {
     };
 
     try {
-      // Chamada para a API Serverless (Código abaixo)
+      // Chamada para a API Serverless
       const response = await fetch('/api/gerar-pix', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -201,7 +201,6 @@ export default function HomePage() {
       if (response.ok) {
         setPixData(data);
         setCheckoutState('pix');
-        // Aqui você iniciaria um "polling" para verificar status
       } else {
         alert('Erro ao gerar PIX. Tente novamente.');
         setCheckoutState('form');
@@ -557,11 +556,21 @@ export default function HomePage() {
               {checkoutState === 'pix' && pixData && (
                 <div className="text-center space-y-6">
                   <div className="bg-gray-100 p-4 rounded-lg inline-block">
-                    {/* Se tiver imagem base64 do QR Code, mostramos. Se não, mostramos ícone */}
+                    
+                    {/* CORREÇÃO: Verifica se o base64 já tem o prefixo 'data:'. Se tiver, usa ele. Se não, adiciona. */}
                     {pixData.qrCodeBase64 ? (
-                        <img src={`data:image/png;base64,${pixData.qrCodeBase64}`} alt="QR Code Pix" className="w-48 h-48 mx-auto" />
+                        <img 
+                            src={pixData.qrCodeBase64.startsWith('data:') ? pixData.qrCodeBase64 : `data:image/png;base64,${pixData.qrCodeBase64}`} 
+                            alt="QR Code Pix" 
+                            className="w-48 h-48 mx-auto" 
+                        />
                     ) : (
-                        <QrCodeIcon className="w-48 h-48 text-gray-800 mx-auto" />
+                        // FALLBACK: Usa a API qrserver.com para gerar imagem a partir do código copia e cola
+                        <img 
+                          src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(pixData.copiaECola)}`} 
+                          alt="QR Code Pix Gerado Automaticamente" 
+                          className="w-48 h-48 mx-auto" 
+                        />
                     )}
                   </div>
                   
