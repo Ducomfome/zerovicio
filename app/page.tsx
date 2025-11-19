@@ -28,9 +28,9 @@ const VIDEO_SOURCES: Record<VideoKey, string> = {
 
 // Trocamos os links quebrados por placehold.co que é mais estável
 const POSTER_SOURCES: Record<VideoKey, string> = {
-  vsl: "https://placehold.co/1280x720/png?text=Capa+do+VSL",
-  test1: "https://placehold.co/1280x720/png?text=Capa+Prova+1",
-  test2: "https://placehold.co/1280x720/png?text=Capa+Prova+2",
+  vsl: "",
+  test1: "",
+  test2: "",
 };
 
 // Função auxiliar para pegar cookies (fbc/fbp) sem bibliotecas extras
