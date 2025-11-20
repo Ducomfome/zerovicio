@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import {
   CheckCircleIcon,
@@ -11,8 +10,9 @@ import {
   LightBulbIcon,
   XMarkIcon,
   PlayCircleIcon,
-  QrCodeIcon,
   DocumentDuplicateIcon,
+  LockClosedIcon,
+  StarIcon,
 } from "@heroicons/react/24/solid";
 
 // =========================================================
@@ -26,14 +26,12 @@ const VIDEO_SOURCES: Record<VideoKey, string> = {
   test2: "https://pub-9ad786fb39ec4b43b2905a55edcb38d9.r2.dev/baixados%20(2).mp4",
 };
 
-// Trocamos os links quebrados por placehold.co que é mais estável
 const POSTER_SOURCES: Record<VideoKey, string> = {
-  vsl: "",
-  test1: "",
-  test2: "",
+  vsl: "https://placehold.co/1280x720/10b981/ffffff/png?text=Assista+ao+Vídeo+Oficial",
+  test1: "https://placehold.co/1280x720/e2e8f0/475569/png?text=Depoimento+Maria",
+  test2: "https://placehold.co/1280x720/e2e8f0/475569/png?text=Depoimento+João",
 };
 
-// Função auxiliar para pegar cookies (fbc/fbp) sem bibliotecas extras
 const getCookie = (name: string) => {
   if (typeof document === "undefined") return null;
   const value = `; ${document.cookie}`;
@@ -43,7 +41,7 @@ const getCookie = (name: string) => {
 };
 
 // =========================================================
-// COMPONENTE PLAYER
+// COMPONENTE PLAYER (Estilizado)
 // =========================================================
 function Player({
   id,
@@ -94,7 +92,7 @@ function Player({
   };
 
   return (
-    <div className="relative aspect-w-16 aspect-h-9 rounded-lg shadow-lg overflow-hidden border-2 border-blue-500 bg-gradient-to-br from-gray-100 to-gray-300">
+    <div className="relative w-full aspect-video rounded-2xl shadow-2xl overflow-hidden border-4 border-white ring-1 ring-gray-200 bg-gray-900 group">
       <video
         ref={(el) => {
           localRef.current = el;
@@ -115,27 +113,28 @@ function Player({
         }}
         className="w-full h-full object-cover"
       />
+      
       {isPosterVisible && poster && (
-        <img
-          src={poster}
-          alt=""
-          className="absolute inset-0 w-full h-full object-cover rounded-lg pointer-events-none"
-          onError={(e) => {
-            (e.target as HTMLImageElement).style.display = 'none';
-          }}
-        />
+        <div className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-105" style={{ backgroundImage: `url(${poster})` }}>
+          <div className="absolute inset-0 bg-black/30 group-hover:bg-black/40 transition-all" />
+        </div>
       )}
+
       {isPosterVisible && (
         <div
           onClick={handlePlayClick}
-          className="absolute inset-0 z-10 flex items-center justify-center bg-black/40 cursor-pointer"
+          className="absolute inset-0 z-10 flex items-center justify-center cursor-pointer"
         >
-          <PlayCircleIcon className="w-20 h-20 text-white opacity-95" />
+          <div className="relative">
+            <div className="absolute inset-0 bg-green-500 rounded-full animate-ping opacity-75"></div>
+            <PlayCircleIcon className="relative w-20 h-20 text-white drop-shadow-lg transform transition-transform group-hover:scale-110" />
+          </div>
         </div>
       )}
+
       {isLoading && (
-        <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none bg-black/20">
-          <div className="w-14 h-14 border-4 border-white border-t-transparent rounded-full animate-spin" />
+        <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none bg-black/50 backdrop-blur-sm">
+          <div className="w-12 h-12 border-4 border-green-500 border-t-transparent rounded-full animate-spin" />
         </div>
       )}
     </div>
@@ -146,23 +145,16 @@ function Player({
 // PÁGINA PRINCIPAL
 // =========================================================
 export default function HomePage() {
-  // Estados do Modal
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [checkoutState, setCheckoutState] = useState<'form' | 'loading' | 'pix' | 'success'>('form');
   const [selectedPlan, setSelectedPlan] = useState<{ name: string; price: number } | null>(null);
-  
-  // Dados do PIX gerado
   const [pixData, setPixData] = useState<{ qrCodeBase64: string; copiaECola: string; id: string } | null>(null);
-
-  // Player States
   const [currentlyPlaying, setCurrentlyPlaying] = useState<VideoKey | null>(null);
+  
   const videoRefs = useRef<Record<VideoKey, HTMLVideoElement | null>>({
-    vsl: null,
-    test1: null,
-    test2: null,
+    vsl: null, test1: null, test2: null,
   });
 
-  // Abrir modal com dados do plano
   const openModal = (planName: string, price: number) => {
     setSelectedPlan({ name: planName, price });
     setCheckoutState('form');
@@ -171,7 +163,6 @@ export default function HomePage() {
 
   const closeModal = () => setIsModalOpen(false);
 
-  // Lógica de Gerar Pix (Integração com API)
   const handleGeneratePix = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setCheckoutState('loading');
@@ -181,15 +172,14 @@ export default function HomePage() {
       name: formData.get('name'),
       email: formData.get('email'),
       phone: formData.get('phone'),
-      cpf: formData.get('cpf'), // Pix geralmente precisa de CPF
+      cpf: formData.get('cpf'),
       plan: selectedPlan?.name,
       price: selectedPlan?.price,
-      fbc: getCookie('_fbc'), // Pega cookies do Facebook automaticamente
+      fbc: getCookie('_fbc'),
       fbp: getCookie('_fbp'),
     };
 
     try {
-      // Chamada para a API Serverless
       const response = await fetch('/api/gerar-pix', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -202,7 +192,7 @@ export default function HomePage() {
         setPixData(data);
         setCheckoutState('pix');
       } else {
-        alert('Erro ao gerar PIX. Tente novamente.');
+        alert(data.error || 'Erro ao gerar PIX. Tente novamente.');
         setCheckoutState('form');
       }
     } catch (error) {
@@ -222,31 +212,37 @@ export default function HomePage() {
   useEffect(() => {
     return () => {
       (Object.keys(videoRefs.current) as VideoKey[]).forEach((k) => {
-        try {
-          videoRefs.current[k]?.pause();
-        } catch {}
+        try { videoRefs.current[k]?.pause(); } catch {}
       });
     };
   }, []);
 
   return (
-    <div className="bg-white text-gray-800 min-h-screen">
-      {/* SEÇÃO 1: VSL */}
-      <section
-        className="py-12 md:py-20 relative bg-cover bg-center"
-        style={{
-          backgroundImage: "url('https://i.ibb.co/VvzHf8r/light-green-medical-bg.png')",
-        }}
-      >
-        <div className="absolute inset-0 bg-white bg-opacity-70 backdrop-blur-sm" />
-        <div className="max-w-4xl mx-auto px-4 text-center relative z-10">
-          <h1 className="text-3xl md:text-5xl font-bold text-gray-900 mb-6">
-            Conheça o Zero Vicios: A Jornada Para Se Libertar Começa Hoje
+    <div className="font-sans text-slate-800 bg-slate-50 min-h-screen selection:bg-green-200 selection:text-green-900">
+      
+      {/* SEÇÃO 1: HERO / VSL */}
+      <section className="relative py-16 md:py-28 overflow-hidden">
+        {/* Background Image com Overlay */}
+        <div 
+            className="absolute inset-0 bg-cover bg-center z-0" 
+            style={{ backgroundImage: "url('https://images.unsplash.com/photo-1505751172876-fa1923c5c528?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80')" }}
+        ></div>
+        <div className="absolute inset-0 bg-gradient-to-b from-slate-900/90 via-slate-900/80 to-slate-50 z-0"></div>
+
+        <div className="max-w-5xl mx-auto px-4 relative z-10 text-center">
+          <div className="inline-block px-4 py-1 bg-green-500/20 border border-green-500/30 rounded-full mb-6 backdrop-blur-sm">
+             <span className="text-green-300 font-semibold text-sm uppercase tracking-wider">Revelação Científica</span>
+          </div>
+          
+          <h1 className="text-3xl md:text-6xl font-extrabold text-white mb-6 leading-tight">
+            A Jornada Para Se <span className="text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-emerald-300">Libertar do Vício</span> Começa Agora
           </h1>
-          <p className="text-lg md:text-xl text-gray-700 mb-8">
-            Assista ao vídeo abaixo e descubra como a fórmula Zero Vicios está ajudando...
+          
+          <p className="text-lg md:text-xl text-slate-300 mb-10 max-w-3xl mx-auto leading-relaxed">
+            Descubra o método natural que está devolvendo o controle e a dignidade para milhares de homens comuns. Assista antes que saia do ar.
           </p>
-          <div className="max-w-4xl mx-auto">
+
+          <div className="max-w-4xl mx-auto transform hover:scale-[1.01] transition-transform duration-500">
             <Player
               id="vsl"
               src={VIDEO_SOURCES.vsl}
@@ -256,185 +252,183 @@ export default function HomePage() {
               refsMap={videoRefs}
             />
           </div>
-          <a
-            href="#oferta"
-            className="mt-10 inline-block bg-green-500 text-white text-xl md:text-2xl font-bold py-4 px-10 rounded-lg shadow-lg hover:bg-green-600 transition-all duration-300 transform hover:scale-105"
-          >
-            QUERO O MEU ZERO VICIOS AGORA!
-          </a>
+
+          <div className="mt-12">
+            <a
+              href="#oferta"
+              className="group relative inline-flex items-center justify-center bg-gradient-to-r from-green-500 to-emerald-600 text-white text-xl md:text-2xl font-bold py-5 px-12 rounded-full shadow-lg shadow-green-500/30 hover:shadow-green-500/50 transition-all duration-300 transform hover:-translate-y-1"
+            >
+              <span className="absolute w-full h-full bg-white/20 animate-pulse rounded-full"></span>
+              QUERO O MEU ZERO VICIOS AGORA
+              <TruckIcon className="w-8 h-8 ml-3 group-hover:translate-x-1 transition-transform" />
+            </a>
+            <div className="mt-4 flex items-center justify-center gap-2 text-slate-400 text-sm">
+                <LockClosedIcon className="w-4 h-4" /> Compra Segura e Discreta
+            </div>
+          </div>
         </div>
       </section>
 
       {/* SEÇÃO 2: PROVAS SOCIAIS */}
-      <section className="py-12 md:py-20 bg-white">
-        <div className="max-w-5xl mx-auto px-4">
-          <h2 className="text-3xl md:text-4xl font-bold text-center text-gray-900 mb-12">
-            Veja a Transformação Real de Nossos Clientes
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <Player
-              id="test1"
-              src={VIDEO_SOURCES.test1}
-              poster={POSTER_SOURCES.test1}
-              currentlyPlaying={currentlyPlaying}
-              setCurrentlyPlaying={setCurrentlyPlaying}
-              refsMap={videoRefs}
-            />
-            <Player
-              id="test2"
-              src={VIDEO_SOURCES.test2}
-              poster={POSTER_SOURCES.test2}
-              currentlyPlaying={currentlyPlaying}
-              setCurrentlyPlaying={setCurrentlyPlaying}
-              refsMap={videoRefs}
-            />
+      <section className="py-16 bg-white">
+        <div className="max-w-6xl mx-auto px-4">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mb-4">
+              Histórias Reais, <span className="text-green-600">Resultados Reais</span>
+            </h2>
+            <div className="h-1 w-24 bg-green-500 mx-auto rounded-full"></div>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12">
+             {/* Wrapper para dar um estilo visual nos vídeos de depoimento */}
+             <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 shadow-lg">
+                <Player
+                id="test1"
+                src={VIDEO_SOURCES.test1}
+                poster={POSTER_SOURCES.test1}
+                currentlyPlaying={currentlyPlaying}
+                setCurrentlyPlaying={setCurrentlyPlaying}
+                refsMap={videoRefs}
+                />
+                <div className="mt-4 flex items-center gap-2">
+                    <div className="w-10 h-10 bg-slate-300 rounded-full flex items-center justify-center text-slate-600 font-bold">M</div>
+                    <div>
+                        <p className="font-bold text-slate-800">Maria S.</p>
+                        <div className="flex text-yellow-400 text-xs"><StarIcon className="w-4 h-4"/><StarIcon className="w-4 h-4"/><StarIcon className="w-4 h-4"/><StarIcon className="w-4 h-4"/><StarIcon className="w-4 h-4"/></div>
+                    </div>
+                </div>
+            </div>
+
+            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 shadow-lg">
+                <Player
+                id="test2"
+                src={VIDEO_SOURCES.test2}
+                poster={POSTER_SOURCES.test2}
+                currentlyPlaying={currentlyPlaying}
+                setCurrentlyPlaying={setCurrentlyPlaying}
+                refsMap={videoRefs}
+                />
+                 <div className="mt-4 flex items-center gap-2">
+                    <div className="w-10 h-10 bg-slate-300 rounded-full flex items-center justify-center text-slate-600 font-bold">J</div>
+                    <div>
+                        <p className="font-bold text-slate-800">João P.</p>
+                        <div className="flex text-yellow-400 text-xs"><StarIcon className="w-4 h-4"/><StarIcon className="w-4 h-4"/><StarIcon className="w-4 h-4"/><StarIcon className="w-4 h-4"/><StarIcon className="w-4 h-4"/></div>
+                    </div>
+                </div>
+            </div>
           </div>
         </div>
       </section>
 
       {/* SEÇÃO 3: BENEFÍCIOS */}
-      <section className="py-12 md:py-20 bg-gray-50">
-        <div className="max-w-5xl mx-auto px-4">
-          <h2 className="text-3xl md:text-4xl font-bold text-center text-gray-900 mb-12">
-            A Solução Completa do Zero Vicios
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
-            <div className="flex flex-col items-center">
-              <HeartIcon className="w-12 h-12 text-blue-500 mb-4" />
-              <h3 className="text-xl font-bold text-gray-900 mb-2">Auxilia no Bem-Estar</h3>
-              <p className="text-gray-700">Componentes que ajudam a reduzir a ansiedade e promovem a calma.</p>
-            </div>
-            <div className="flex flex-col items-center">
-              <BeakerIcon className="w-12 h-12 text-blue-500 mb-4" />
-              <h3 className="text-xl font-bold text-gray-900 mb-2">Fórmula 100% Natural</h3>
-              <p className="text-gray-700">Livre de aditivos químicos, focado em ingredientes seguros e comprovados.</p>
-            </div>
-            <div className="flex flex-col items-center">
-              <LightBulbIcon className="w-12 h-12 text-blue-500 mb-4" />
-              <h3 className="text-xl font-bold text-gray-900 mb-2">Mais Foco e Clareza</h3>
-              <p className="text-gray-700">Ajuda a recuperar o foco perdido e melhora a clareza mental no dia a dia.</p>
-            </div>
+      <section className="py-20 bg-slate-50 relative overflow-hidden">
+        <div className="max-w-6xl mx-auto px-4 relative z-10">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl md:text-4xl font-bold text-slate-900">
+              Tecnologia Natural Avançada
+            </h2>
+            <p className="mt-4 text-slate-600 text-lg">Por que o Zero Vicios funciona onde outros falham?</p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {[
+              { icon: HeartIcon, title: "Equilíbrio Emocional", desc: "Ativos que modulam o sistema nervoso, reduzindo a ansiedade e a compulsão." },
+              { icon: BeakerIcon, title: "Pureza Garantida", desc: "Fórmula 100% limpa, sem aditivos viciantes ou efeitos colaterais indesejados." },
+              { icon: LightBulbIcon, title: "Clareza Mental", desc: "Recupere o foco e a produtividade que o vício roubou de você." }
+            ].map((item, idx) => (
+                <div key={idx} className="bg-white p-8 rounded-2xl shadow-lg border border-slate-100 hover:shadow-xl transition-shadow hover:-translate-y-1 duration-300">
+                    <div className="w-16 h-16 bg-green-100 rounded-2xl flex items-center justify-center mb-6 text-green-600 mx-auto">
+                        <item.icon className="w-8 h-8" />
+                    </div>
+                    <h3 className="text-xl font-bold text-slate-900 mb-3 text-center">{item.title}</h3>
+                    <p className="text-slate-600 text-center leading-relaxed">{item.desc}</p>
+                </div>
+            ))}
           </div>
         </div>
       </section>
 
-      {/* SEÇÃO 4: COMO FUNCIONA */}
-      <section className="py-12 md:py-20 bg-white">
-        <div className="max-w-5xl mx-auto px-4 flex flex-col md:flex-row items-center gap-12">
-          <div className="w-full md:w-1/2">
-            <img
-              src="https://i.imgur.com/EQAYRKu.png"
-              alt="Frascos Zero Vicios"
-              className="w-full h-auto object-contain rounded-lg shadow-lg"
-            />
-          </div>
-          <div className="w-full md:w-1/2">
-            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-6">Como o Zero Vicios Funciona?</h2>
-            <p className="text-lg text-gray-700 mb-4">
-              Nossa fórmula combina ingredientes naturais e potentes, cuidadosamente selecionados para agir diretamente na causa raiz da ansiedade e dos impulsos.
-            </p>
-            <p className="text-lg text-gray-700 mb-6">
-              Ao contrário de soluções paliativas, o <strong>Zero Vicios</strong> foca em nutrir o corpo e reequilibrar o sistema nervoso, oferecendo um suporte real e duradouro.
-            </p>
-            <ul className="space-y-3">
-              <li className="flex items-center text-lg">
-                <CheckCircleIcon className="w-6 h-6 text-green-500 mr-2" />
-                Ingrediente A (Reduz ansiedade)
-              </li>
-              <li className="flex items-center text-lg">
-                <CheckCircleIcon className="w-6 h-6 text-green-500 mr-2" />
-                Ingrediente B (Melhora o sono)
-              </li>
-              <li className="flex items-center text-lg">
-                <CheckCircleIcon className="w-6 h-6 text-green-500 mr-2" />
-                Ingrediente C (Aumenta a energia)
-              </li>
-            </ul>
-          </div>
-        </div>
-      </section>
-
-      {/* SEÇÃO 5: OFERTA */}
-      <section id="oferta" className="py-12 md:py-20 bg-gray-50">
-        <div className="max-w-6xl mx-auto px-4">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">Aproveite a Oferta Especial de Lançamento</h2>
-            <p className="text-lg text-gray-600">Estoques limitados. Esta oferta pode encerrar a qualquer momento.</p>
+      {/* SEÇÃO 5: OFERTA (DESIGN MODERNO) */}
+      <section id="oferta" className="py-20 bg-gradient-to-b from-white to-slate-100">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="text-center mb-16">
+            <span className="text-green-600 font-bold tracking-wider uppercase text-sm">Oferta Exclusiva</span>
+            <h2 className="text-3xl md:text-5xl font-bold text-slate-900 mt-2">Escolha o Seu Tratamento</h2>
+            <p className="mt-4 text-slate-600 max-w-2xl mx-auto">Preços especiais de lançamento com frete grátis para todo o Brasil.</p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 items-start">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-center max-w-6xl mx-auto">
             
-            {/* PLANO 1: 3 MESES */}
-            <div className="bg-white border-2 border-gray-300 rounded-lg shadow-xl p-6 h-full flex flex-col">
-              <img
-                src="https://i.imgur.com/5wouai7.png"
-                alt="Kit 3 Meses"
-                className="w-full h-auto object-contain mx-auto mb-4 rounded-lg"
-              />
-              <h3 className="text-2xl font-bold mt-4 text-gray-900 text-center">Kit 3 Meses</h3>
-              <p className="text-5xl md:text-6xl font-extrabold text-blue-500 my-4 text-center">R$ 123,90</p>
-              
-              <div className="text-left text-lg space-y-3 mb-8 text-gray-700 mt-4">
-                <p className="flex items-center"><CheckCircleIcon className="w-6 h-6 text-green-500 mr-2" /> Tratamento para 90 dias</p>
-                <p className="flex items-center"><TruckIcon className="w-6 h-6 text-blue-500 mr-2" /> <span className="font-bold">FRETE GRÁTIS</span></p>
-                <p className="flex items-center"><ShieldCheckIcon className="w-6 h-6 text-green-500 mr-2" /> Compra 100% Segura</p>
+            {/* CARD 1: 3 MESES */}
+            <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-8 transition-transform hover:scale-105 order-2 lg:order-1">
+              <div className="text-center">
+                <h3 className="text-2xl font-bold text-slate-800">Tratamento Inicial</h3>
+                <p className="text-sm text-slate-500 mb-6">Kit 3 Meses</p>
+                <div className="relative h-48 w-full mb-4">
+                     <img src="https://i.imgur.com/5wouai7.png" alt="Kit 3" className="object-contain w-full h-full" />
+                </div>
+                <div className="flex justify-center items-baseline mb-6">
+                    <span className="text-3xl font-bold text-slate-900">R$ 123,90</span>
+                </div>
+                <button 
+                  onClick={() => openModal("Kit 3 Meses", 123.90)} 
+                  className="w-full bg-slate-100 hover:bg-slate-200 text-slate-900 font-bold py-4 rounded-xl transition-colors"
+                >
+                  COMPRAR AGORA
+                </button>
               </div>
-
-              <button 
-                onClick={() => openModal("Kit 3 Meses", 123.90)} 
-                className="w-full mt-auto inline-block bg-blue-500 text-white text-xl md:text-2xl font-bold py-4 px-8 rounded-lg shadow-lg hover:bg-blue-600 transition-all duration-300"
-              >
-                COMPRAR AGORA
-              </button>
             </div>
 
-            {/* PLANO 2: 5 MESES */}
-            <div className="bg-white border-2 border-amber-400 rounded-lg shadow-2xl p-6 ring-4 ring-amber-400 ring-opacity-30 transform md:-translate-y-6 h-full flex flex-col">
-              <span className="text-base mx-auto bg-amber-400 text-black font-bold py-1 px-4 rounded-full uppercase">Mais Vendido</span>
-              <img
-                src="https://i.imgur.com/pNINamC.png"
-                alt="Kit 5 Meses"
-                className="w-full h-auto object-contain mx-auto mb-4 rounded-lg"
-              />
-              <h3 className="text-2xl font-bold mt-4 text-gray-900 text-center">Kit 5 Meses</h3>
-              <p className="text-5xl md:text-6xl font-extrabold text-green-500 my-4 text-center">R$ 167,90</p>
-
-              <div className="text-left text-lg space-y-3 mb-8 text-gray-700 mt-4">
-                <p className="flex items-center"><CheckCircleIcon className="w-6 h-6 text-green-500 mr-2" /> Tratamento para 150 dias</p>
-                <p className="flex items-center"><TruckIcon className="w-6 h-6 text-blue-500 mr-2" /> <span className="font-bold">FRETE GRÁTIS</span></p>
-                <p className="flex items-center"><ShieldCheckIcon className="w-6 h-6 text-green-500 mr-2" /> Compra 100% Segura</p>
+            {/* CARD 2: 5 MESES (DESTAQUE) */}
+            <div className="relative bg-white rounded-3xl shadow-2xl shadow-green-900/10 border-2 border-green-500 p-8 transform scale-105 z-10 order-1 lg:order-2">
+              <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-green-600 text-white px-6 py-2 rounded-full text-sm font-bold uppercase tracking-wide shadow-lg">
+                Mais Vendido
               </div>
+              <div className="text-center mt-4">
+                <h3 className="text-3xl font-bold text-slate-900">Tratamento Completo</h3>
+                <p className="text-green-600 font-medium mb-6">Kit 5 Meses (Recomendado)</p>
+                <div className="relative h-56 w-full mb-6">
+                     <img src="https://i.imgur.com/pNINamC.png" alt="Kit 5" className="object-contain w-full h-full transform scale-110" />
+                </div>
+                <div className="mb-8">
+                    <p className="text-sm text-slate-400 line-through">De R$ 297,00</p>
+                    <span className="text-5xl font-extrabold text-slate-900">R$ 167,90</span>
+                    <p className="text-green-600 text-sm font-bold mt-2">Você economiza muito!</p>
+                </div>
+                
+                <ul className="text-left space-y-3 mb-8 bg-slate-50 p-4 rounded-lg text-sm text-slate-700">
+                    <li className="flex items-center"><CheckCircleIcon className="w-5 h-5 text-green-500 mr-2"/> Tratamento Ideal (150 dias)</li>
+                    <li className="flex items-center"><TruckIcon className="w-5 h-5 text-green-500 mr-2"/> Frete Grátis e Prioritário</li>
+                    <li className="flex items-center"><ShieldCheckIcon className="w-5 h-5 text-green-500 mr-2"/> Garantia Blindada</li>
+                </ul>
 
-              <button 
-                onClick={() => openModal("Kit 5 Meses", 167.90)} 
-                className="w-full mt-auto inline-block bg-green-500 text-white text-xl md:text-2xl font-bold py-4 px-8 rounded-lg shadow-lg hover:bg-green-600 transition-all duration-300 animate-pulse transform hover:scale-105"
-              >
-                QUERO O MAIS VENDIDO
-              </button>
+                <button 
+                  onClick={() => openModal("Kit 5 Meses", 167.90)} 
+                  className="w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white text-xl font-bold py-5 rounded-xl shadow-lg shadow-green-500/30 transition-all animate-pulse"
+                >
+                  QUERO O MAIS VENDIDO
+                </button>
+              </div>
             </div>
 
-            {/* PLANO 3: 12 MESES */}
-            <div className="bg-white border-2 border-gray-300 rounded-lg shadow-xl p-6 h-full flex flex-col">
-              <img
-                src="https://i.imgur.com/aJoKk1u.png"
-                alt="Kit 12 Meses"
-                className="w-full h-auto object-contain mx-auto mb-4 rounded-lg"
-              />
-              <h3 className="text-2xl font-bold mt-4 text-gray-900 text-center">Kit 12 Meses</h3>
-              <p className="text-5xl md:text-6xl font-extrabold text-blue-500 my-4 text-center">R$ 227,90</p>
-              
-              <div className="text-left text-lg space-y-3 mb-8 text-gray-700 mt-4">
-                <p className="flex items-center"><CheckCircleIcon className="w-6 h-6 text-green-500 mr-2" /> Tratamento para 365 dias</p>
-                <p className="flex items-center"><TruckIcon className="w-6 h-6 text-blue-500 mr-2" /> <span className="font-bold">FRETE GRÁTIS</span></p>
-                <p className="flex items-center"><ShieldCheckIcon className="w-6 h-6 text-green-500 mr-2" /> Compra 100% Segura</p>
+            {/* CARD 3: 12 MESES */}
+            <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-8 transition-transform hover:scale-105 order-3">
+              <div className="text-center">
+                <h3 className="text-2xl font-bold text-slate-800">Estoque Anual</h3>
+                <p className="text-sm text-slate-500 mb-6">Kit 12 Meses</p>
+                <div className="relative h-48 w-full mb-4">
+                     <img src="https://i.imgur.com/aJoKk1u.png" alt="Kit 12" className="object-contain w-full h-full" />
+                </div>
+                <div className="flex justify-center items-baseline mb-6">
+                    <span className="text-3xl font-bold text-slate-900">R$ 227,90</span>
+                </div>
+                <button 
+                  onClick={() => openModal("Kit 12 Meses", 227.90)} 
+                  className="w-full bg-slate-100 hover:bg-slate-200 text-slate-900 font-bold py-4 rounded-xl transition-colors"
+                >
+                  COMPRAR AGORA
+                </button>
               </div>
-
-              <button 
-                onClick={() => openModal("Kit 12 Meses", 227.90)} 
-                className="w-full mt-auto inline-block bg-blue-500 text-white text-xl md:text-2xl font-bold py-4 px-8 rounded-lg shadow-lg hover:bg-blue-600 transition-all duration-300"
-              >
-                COMPRAR AGORA
-              </button>
             </div>
 
           </div>
@@ -442,174 +436,151 @@ export default function HomePage() {
       </section>
 
       {/* SEÇÃO 6: GARANTIA */}
-      <section className="py-12 md:py-20 bg-white">
+      <section className="py-16 bg-white border-t border-slate-100">
         <div className="max-w-3xl mx-auto px-4 text-center">
-          <h2 className="text-3xl font-bold text-gray-900 mb-4">Risco Zero Para Você</h2>
-          <p className="text-lg text-gray-700 mb-4">Temos total confiança na eficácia do Zero Vicios. Por isso, oferecemos uma <strong>Garantia Incondicional de 30 Dias</strong>.</p>
-          <p className="text-lg text-gray-700">Se você não sentir uma melhora significativa ou não ficar satisfeito por qualquer motivo, basta nos enviar um e-mail dentro de 30 dias e devolveremos 100% do seu investimento.</p>
+            <div className="inline-block p-4 bg-green-100 rounded-full mb-6">
+                <ShieldCheckIcon className="w-12 h-12 text-green-600" />
+            </div>
+          <h2 className="text-3xl font-bold text-slate-900 mb-4">Garantia Incondicional de 30 Dias</h2>
+          <p className="text-lg text-slate-600 mb-8 leading-relaxed">
+            O risco é todo nosso. Se você não notar diferença na sua ansiedade ou controle, nós devolvemos 100% do seu dinheiro. Sem letras miúdas.
+          </p>
+          <img src="https://logodownload.org/wp-content/uploads/2014/07/anvisa-logo-1.png" alt="Anvisa" className="h-12 mx-auto opacity-50 grayscale hover:grayscale-0 transition-all" />
         </div>
       </section>
 
-      {/* SEÇÃO 7: FAQ */}
-      <section className="py-12 md:py-20 bg-gray-50">
+      {/* FAQ */}
+      <section className="py-16 bg-slate-50">
         <div className="max-w-3xl mx-auto px-4">
-          <h2 className="text-3xl md:text-4xl font-bold text-center text-gray-900 mb-12">Perguntas Frequentes sobre o Zero Vicios</h2>
-          <div className="space-y-6">
-            <div className="border-b border-gray-200 pb-4">
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">O Zero Vicios é aprovado pela ANVISA?</h3>
-              <p className="text-gray-700">Sim. O Zero Vicios não é um medicamento, mas um suplemento. Ele é 100% natural e é dispensado de registro conforme a RDC 240/2018 da ANVISA, sendo considerado seguro para o consumo.</p>
+            <h2 className="text-3xl font-bold text-center text-slate-900 mb-10">Dúvidas Frequentes</h2>
+            <div className="space-y-4">
+                {[
+                    {q: "Como o envio é feito?", a: "Enviamos em embalagem 100% discreta (caixa parda sem logos), ninguém saberá o que tem dentro."},
+                    {q: "Tem efeitos colaterais?", a: "Não. Por ser 100% natural, não causa sonolência excessiva nem dependência."},
+                    {q: "Aceitam cartão?", a: "No momento estamos priorizando o PIX para garantir o menor preço possível sem taxas de operadoras de cartão."}
+                ].map((faq, i) => (
+                    <div key={i} className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                        <h3 className="font-bold text-slate-800 text-lg mb-2">{faq.q}</h3>
+                        <p className="text-slate-600">{faq.a}</p>
+                    </div>
+                ))}
             </div>
-            <div className="border-b border-gray-200 pb-4">
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">Como devo utilizar o Zero Vicios?</h3>
-              <p className="text-gray-700">A recomendação é tomar **20 gotas (1ml)** por dia, preferencialmente sublingual (debaixo da língua), 10 gotas pela manhã e 10 gotas à noite.</p>
-            </div>
-            <div className="border-b border-gray-200 pb-4">
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">Em quanto tempo vejo resultados?</h3>
-              <p className="text-gray-700">Os resultados variam de pessoa para pessoa, mas muitos clientes relatam sentir os primeiros benefícios (como redução da ansiedade) já na primeira semana de uso.</p>
-            </div>
-            <div className="border-b border-gray-200 pb-4">
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">O site é seguro para comprar?</h3>
-              <p className="text-gray-700">Absolutamente. Nosso site utiliza criptografia SSL (o cadeado verde) e o processamento de pagamento é feito pelas maiores plataformas do Brasil, garantindo total segurança dos seus dados.</p>
-            </div>
-          </div>
         </div>
       </section>
 
       {/* RODAPÉ */}
-      <footer className="text-center py-10 bg-gray-800 text-gray-400 text-sm">
-        <div className="max-w-4xl mx-auto px-4">
-          <p>Copyright © {new Date().getFullYear()} - Zero Vicios - Todos os direitos reservados.</p>
-          <p className="mt-2">Este produto não se destina a diagnosticar, tratar, curar ou prevenir qualquer doença. Os resultados individuais podem variar.</p>
-          <div className="flex justify-center gap-4 mt-4">
-            <a href="#" className="hover:text-white">Termos de Uso</a>
-            <a href="#" className="hover:text-white">Política de Privacidade</a>
+      <footer className="py-12 bg-slate-900 text-slate-400 text-sm border-t border-slate-800">
+        <div className="max-w-6xl mx-auto px-4 text-center md:text-left flex flex-col md:flex-row justify-between items-center gap-6">
+          <div>
+             <p className="font-bold text-white text-lg mb-2">ZERO VICIOS</p>
+             <p>Copyright © {new Date().getFullYear()} - Todos os direitos reservados.</p>
+          </div>
+          <div className="flex gap-6">
+             <img src="https://img.icons8.com/color/48/000000/pix.png" alt="Pix" className="h-8" />
+             <div className="flex items-center gap-1"><LockClosedIcon className="w-4 h-4"/> Site Seguro</div>
           </div>
         </div>
       </footer>
 
-      {/* MODAL DE CAPTURA / CHECKOUT */}
+      {/* MODAL DE CHECKOUT OTIMIZADO */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75 p-4">
-          <div className="bg-white rounded-lg shadow-2xl w-full max-w-md relative overflow-hidden flex flex-col max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm transition-opacity">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md relative overflow-hidden flex flex-col max-h-[90vh] animate-fade-in-up">
             
-            {/* Botão Fechar */}
-            <button onClick={closeModal} className="absolute top-4 right-4 text-gray-400 hover:text-gray-800 z-10">
+            <button onClick={closeModal} className="absolute top-4 right-4 text-slate-400 hover:text-slate-800 z-10 bg-slate-100 rounded-full p-1 transition-colors">
               <XMarkIcon className="w-6 h-6" />
             </button>
 
-            {/* HEADERS DO MODAL (Dependendo do estado) */}
-            <div className="p-6 bg-gray-50 border-b">
-              {checkoutState === 'form' && (
-                <>
-                  <h2 className="text-2xl font-bold text-gray-900 text-center">Quase lá!</h2>
-                  <p className="text-gray-600 text-center">Preencha para gerar seu PIX seguro.</p>
-                  {selectedPlan && <p className="text-center font-bold text-green-600 mt-2">{selectedPlan.name} - R$ {selectedPlan.price.toFixed(2)}</p>}
-                </>
-              )}
-              {checkoutState === 'loading' && (
-                <h2 className="text-2xl font-bold text-gray-900 text-center">Gerando PIX...</h2>
-              )}
-              {checkoutState === 'pix' && (
-                <h2 className="text-2xl font-bold text-gray-900 text-center">Pague com PIX</h2>
-              )}
-              {checkoutState === 'success' && (
-                <h2 className="text-2xl font-bold text-green-600 text-center">Pagamento Aprovado!</h2>
-              )}
+            {/* Header do Modal */}
+            <div className="bg-slate-50 p-6 border-b border-slate-100 text-center">
+                 <div className="flex justify-center mb-2">
+                    <LockClosedIcon className="w-5 h-5 text-green-500 mr-1" />
+                    <span className="text-xs font-bold text-green-600 uppercase tracking-wide">Ambiente Seguro</span>
+                 </div>
+                 
+                 {checkoutState === 'form' && (
+                    <>
+                        <h3 className="text-xl font-bold text-slate-900">Finalizar Pedido</h3>
+                        <p className="text-slate-500 text-sm mt-1">{selectedPlan?.name} — <span className="font-bold text-green-600">R$ {selectedPlan?.price.toFixed(2)}</span></p>
+                    </>
+                 )}
+                 {checkoutState === 'pix' && <h3 className="text-xl font-bold text-slate-900">Pagamento via PIX</h3>}
             </div>
 
-            {/* CORPO DO MODAL */}
             <div className="p-6 overflow-y-auto">
-              
-              {/* ESTADO 1: FORMULÁRIO */}
+              {/* FORMULÁRIO */}
               {checkoutState === 'form' && (
                 <form onSubmit={handleGeneratePix} className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Nome Completo</label>
-                    <input type="text" name="name" className="mt-1 block w-full rounded-md border border-gray-300 shadow-sm p-3 focus:ring-blue-500 focus:border-blue-500" placeholder="Seu nome" required />
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Nome Completo</label>
+                    <input type="text" name="name" className="w-full bg-slate-50 border border-slate-300 rounded-lg p-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition-all" placeholder="Seu nome" required />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Email</label>
-                    <input type="email" name="email" className="mt-1 block w-full rounded-md border border-gray-300 shadow-sm p-3 focus:ring-blue-500 focus:border-blue-500" placeholder="voce@email.com" required />
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Email</label>
+                    <input type="email" name="email" className="w-full bg-slate-50 border border-slate-300 rounded-lg p-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition-all" placeholder="seu@email.com" required />
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">CPF (Para Nota Fiscal)</label>
-                    <input type="text" name="cpf" className="mt-1 block w-full rounded-md border border-gray-300 shadow-sm p-3 focus:ring-blue-500 focus:border-blue-500" placeholder="000.000.000-00" required />
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                        <label className="block text-xs font-bold text-slate-700 uppercase mb-1">CPF</label>
+                        <input type="text" name="cpf" className="w-full bg-slate-50 border border-slate-300 rounded-lg p-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition-all" placeholder="000.000.000-00" required />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-slate-700 uppercase mb-1">WhatsApp</label>
+                        <input type="tel" name="phone" className="w-full bg-slate-50 border border-slate-300 rounded-lg p-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition-all" placeholder="(DDD) 9..." required />
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Celular (WhatsApp)</label>
-                    <input type="tel" name="phone" className="mt-1 block w-full rounded-md border border-gray-300 shadow-sm p-3 focus:ring-blue-500 focus:border-blue-500" placeholder="(99) 99999-9999" required />
-                  </div>
-                  <button type="submit" className="mt-4 w-full bg-green-500 text-white text-xl font-bold py-4 rounded-lg shadow hover:bg-green-600 transition-all">
-                    GERAR PIX AGORA
+                  
+                  <button type="submit" className="mt-6 w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 rounded-lg shadow-lg shadow-green-500/20 transition-all transform active:scale-95 flex items-center justify-center gap-2">
+                    <LockClosedIcon className="w-5 h-5" />
+                    GERAR PIX SEGURO
                   </button>
+                  <p className="text-center text-xs text-slate-400 mt-3">Seus dados estão protegidos com criptografia de 256-bits.</p>
                 </form>
               )}
 
-              {/* ESTADO 2: LOADING */}
+              {/* LOADING */}
               {checkoutState === 'loading' && (
-                <div className="flex justify-center py-12">
-                  <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-green-500"></div>
+                <div className="flex flex-col items-center py-10">
+                  <div className="animate-spin rounded-full h-12 w-12 border-4 border-slate-200 border-t-green-500 mb-4"></div>
+                  <p className="text-slate-600 font-medium">Gerando seu QR Code...</p>
                 </div>
               )}
 
-{/* ESTADO 3: QR CODE */}
-{checkoutState === 'pix' && pixData && (
-  <div className="text-center space-y-6">
-    <div className="bg-gray-100 p-4 rounded-lg inline-block">
-      {/* CORREÇÃO AQUI: Tratamento do Base64 e Fallback robusto */}
-      <img 
-        src={
-          pixData.qrCodeBase64 
-            ? (pixData.qrCodeBase64.startsWith('data:image') 
-                ? pixData.qrCodeBase64 
-                : `data:image/png;base64,${pixData.qrCodeBase64}`)
-            : `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(pixData.copiaECola)}`
-        } 
-        alt="QR Code Pix" 
-        className="w-48 h-48 mx-auto" 
-        onError={(e) => {
-          // Se mesmo com o base64 der erro, força o gerador externo
-          e.currentTarget.src = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(pixData.copiaECola)}`;
-        }}
-      />
-    </div>
-    
-    <div>
-      <p className="text-sm text-gray-600 mb-2">Copie o código abaixo e pague no app do seu banco:</p>
-      <div className="flex items-center gap-2">
-        <input 
-          readOnly 
-          value={pixData.copiaECola} 
-          className="w-full bg-gray-100 border border-gray-300 text-gray-500 text-sm rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-blue-500" 
-          onClick={(e) => e.currentTarget.select()} // Facilita pro usuário selecionar ao clicar
-        />
-        <button 
-          onClick={handleCopyPix} 
-          className="bg-blue-500 hover:bg-blue-600 text-white p-2.5 rounded-lg transition-colors"
-          title="Copiar código PIX"
-        >
-          <DocumentDuplicateIcon className="w-5 h-5" />
-        </button>
-      </div>
-    </div>
+              {/* PIX DISPLAY (COM CORREÇÃO DE IMAGEM) */}
+              {checkoutState === 'pix' && pixData && (
+                <div className="text-center space-y-6 animate-fade-in">
+                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 inline-block shadow-inner">
+                    <img 
+                        src={
+                        pixData.qrCodeBase64 
+                            ? (pixData.qrCodeBase64.startsWith('data:image') 
+                                ? pixData.qrCodeBase64 
+                                : `data:image/png;base64,${pixData.qrCodeBase64}`)
+                            : `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(pixData.copiaECola)}`
+                        } 
+                        alt="QR Code Pix" 
+                        className="w-48 h-48 mx-auto mix-blend-multiply" 
+                        onError={(e) => {
+                        e.currentTarget.src = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(pixData.copiaECola)}`;
+                        }}
+                    />
+                  </div>
+                  
+                  <div className="bg-blue-50 p-4 rounded-lg text-left">
+                    <p className="text-xs font-bold text-blue-800 mb-2 uppercase">Copia e Cola</p>
+                    <div className="flex gap-2">
+                        <input readOnly value={pixData.copiaECola} className="w-full bg-white border border-blue-200 text-slate-600 text-xs rounded p-2 outline-none truncate" onClick={(e) => e.currentTarget.select()} />
+                        <button onClick={handleCopyPix} className="bg-blue-600 hover:bg-blue-700 text-white p-2 rounded transition-colors"><DocumentDuplicateIcon className="w-4 h-4" /></button>
+                    </div>
+                  </div>
 
-    <div className="bg-blue-50 p-3 rounded-md border border-blue-100 mt-4">
-        <p className="text-xs text-blue-800">
-            ⏳ O pagamento pode levar alguns segundos para ser confirmado. 
-            <br/>Verifique seu e-mail após pagar.
-        </p>
-    </div>
-  </div>
-)}
-
-              {/* ESTADO 4: SUCESSO */}
-              {checkoutState === 'success' && (
-                <div className="text-center py-8">
-                    <CheckCircleIcon className="w-24 h-24 text-green-500 mx-auto mb-4" />
-                    <p className="text-lg text-gray-700">Seu acesso foi enviado para o seu email!</p>
+                  <div className="text-sm text-slate-500">
+                    <p>1. Abra o app do seu banco</p>
+                    <p>2. Escolha "Pix Copia e Cola"</p>
+                    <p>3. Cole o código e confirme</p>
+                  </div>
                 </div>
               )}
-
             </div>
           </div>
         </div>
