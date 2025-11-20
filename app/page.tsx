@@ -283,25 +283,52 @@ export default function HomePage() {
             <div className="h-1 w-24 bg-green-500 mx-auto rounded-full"></div>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12">
-             {/* Wrapper para dar um estilo visual nos vídeos de depoimento */}
-             <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 shadow-lg">
-                <Player
-                id="test1"
-                src={VIDEO_SOURCES.test1}
-                poster={POSTER_SOURCES.test1}
-                currentlyPlaying={currentlyPlaying}
-                setCurrentlyPlaying={setCurrentlyPlaying}
-                refsMap={videoRefs}
-                />
-                <div className="mt-4 flex items-center gap-2">
-                    <div className="w-10 h-10 bg-slate-300 rounded-full flex items-center justify-center text-slate-600 font-bold">M</div>
-                    <div>
-                        <p className="font-bold text-slate-800">Valdirene S.</p>
-                        <div className="flex text-yellow-400 text-xs"><StarIcon className="w-4 h-4"/><StarIcon className="w-4 h-4"/><StarIcon className="w-4 h-4"/><StarIcon className="w-4 h-4"/><StarIcon className="w-4 h-4"/></div>
-                    </div>
-                </div>
+// SEÇÃO 2: PROVAS SOCIAIS
+{/* ... outros códigos da section ... */}
+
+<div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12 justify-items-center">
+    {/* Wrapper para o Depoimento 1 */}
+    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 shadow-lg w-full max-w-sm"> {/* Adicionado w-full e max-w-sm */}
+        <Player
+            id="test1"
+            src={VIDEO_SOURCES.test1}
+            poster={POSTER_SOURCES.test1}
+            currentlyPlaying={currentlyPlaying}
+            setCurrentlyPlaying={setCurrentlyPlaying}
+            refsMap={videoRefs}
+            aspectRatio="9/16"
+        />
+        <div className="mt-4 flex items-center gap-2">
+            <div className="w-10 h-10 bg-slate-300 rounded-full flex items-center justify-center text-slate-600 font-bold">V</div> {/* Mudei a inicial aqui */}
+            <div>
+                <p className="font-bold text-slate-800">Valdirene S.</p> {/* Mudei o nome aqui */}
+                <div className="flex text-yellow-400 text-xs"><StarIcon className="w-4 h-4"/><StarIcon className="w-4 h-4"/><StarIcon className="w-4 h-4"/><StarIcon className="w-4 h-4"/><StarIcon className="w-4 h-4"/></div>
             </div>
+        </div>
+    </div>
+
+    {/* Wrapper para o Depoimento 2 */}
+    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 shadow-lg w-full max-w-sm"> {/* Adicionado w-full e max-w-sm */}
+        <Player
+            id="test2"
+            src={VIDEO_SOURCES.test2}
+            poster={POSTER_SOURCES.test2}
+            currentlyPlaying={currentlyPlaying}
+            setCurrentlyPlaying={setCurrentlyPlaying}
+            refsMap={videoRefs}
+            aspectRatio="9/16"
+        />
+        <div className="mt-4 flex items-center gap-2">
+            <div className="w-10 h-10 bg-slate-300 rounded-full flex items-center justify-center text-slate-600 font-bold">M</div> {/* Mudei a inicial aqui */}
+            <div>
+                <p className="font-bold text-slate-800">Maria P.</p> {/* Mudei o nome aqui */}
+                <div className="flex text-yellow-400 text-xs"><StarIcon className="w-4 h-4"/><StarIcon className="w-4 h-4"/><StarIcon className="w-4 h-4"/><StarIcon className="w-4 h-4"/><StarIcon className="w-4 h-4"/></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{/* ... outros códigos da section ... */}
 
             <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 shadow-lg">
                 <Player
