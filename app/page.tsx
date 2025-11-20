@@ -41,7 +41,7 @@ const getCookie = (name: string) => {
 };
 
 // =========================================================
-// COMPONENTE PLAYER (Estilizado)
+// COMPONENTE PLAYER (Estilizado e Flexível)
 // =========================================================
 function Player({
   id,
@@ -50,6 +50,7 @@ function Player({
   currentlyPlaying,
   setCurrentlyPlaying,
   refsMap,
+  aspectRatio = "16/9", // NOVO: Padrão 16:9, mas pode ser "9/16", "1/1", etc.
 }: {
   id: VideoKey;
   src: string;
@@ -57,6 +58,7 @@ function Player({
   currentlyPlaying: VideoKey | null;
   setCurrentlyPlaying: (k: VideoKey | null) => void;
   refsMap: React.MutableRefObject<Record<VideoKey, HTMLVideoElement | null>>;
+  aspectRatio?: string; // NOVO: Prop para proporção
 }) {
   const [isLoading, setIsLoading] = useState(false);
   const [isPosterVisible, setIsPosterVisible] = useState(true);
@@ -92,7 +94,10 @@ function Player({
   };
 
   return (
-    <div className="relative w-full aspect-video rounded-2xl shadow-2xl overflow-hidden border-4 border-white ring-1 ring-gray-200 bg-gray-900 group">
+    <div 
+      className="relative w-full rounded-2xl shadow-2xl overflow-hidden border-4 border-white ring-1 ring-gray-200 bg-gray-900 group"
+      style={{ aspectRatio: aspectRatio }} // NOVO: Define a proporção aqui
+    >
       <video
         ref={(el) => {
           localRef.current = el;
@@ -140,7 +145,6 @@ function Player({
     </div>
   );
 }
-
 // =========================================================
 // PÁGINA PRINCIPAL
 // =========================================================
