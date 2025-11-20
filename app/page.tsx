@@ -293,7 +293,7 @@ export default function HomePage() {
                 <div className="mt-4 flex items-center gap-2">
                     <div className="w-10 h-10 bg-slate-300 rounded-full flex items-center justify-center text-slate-600 font-bold">M</div>
                     <div>
-                        <p className="font-bold text-slate-800">Maria S.</p>
+                        <p className="font-bold text-slate-800">Valdirene S.</p>
                         <div className="flex text-yellow-400 text-xs"><StarIcon className="w-4 h-4"/><StarIcon className="w-4 h-4"/><StarIcon className="w-4 h-4"/><StarIcon className="w-4 h-4"/><StarIcon className="w-4 h-4"/></div>
                     </div>
                 </div>
@@ -311,7 +311,7 @@ export default function HomePage() {
                  <div className="mt-4 flex items-center gap-2">
                     <div className="w-10 h-10 bg-slate-300 rounded-full flex items-center justify-center text-slate-600 font-bold">J</div>
                     <div>
-                        <p className="font-bold text-slate-800">João P.</p>
+                        <p className="font-bold text-slate-800">Maria P.</p>
                         <div className="flex text-yellow-400 text-xs"><StarIcon className="w-4 h-4"/><StarIcon className="w-4 h-4"/><StarIcon className="w-4 h-4"/><StarIcon className="w-4 h-4"/><StarIcon className="w-4 h-4"/></div>
                     </div>
                 </div>
