@@ -27,9 +27,9 @@ const VIDEO_SOURCES: Record<VideoKey, string> = {
 };
 
 const POSTER_SOURCES: Record<VideoKey, string> = {
-  vsl: "",
-  test1: "",
-  test2: "",
+  vsl: "https://placehold.co/1280x720/10b981/ffffff/png?text=Assista+ao+Vídeo+Oficial",
+  test1: "https://placehold.co/720x1280/e2e8f0/475569/png?text=Depoimento+Valdirene",
+  test2: "https://placehold.co/720x1280/e2e8f0/475569/png?text=Depoimento+Maria",
 };
 
 const getCookie = (name: string) => {
@@ -41,7 +41,7 @@ const getCookie = (name: string) => {
 };
 
 // =========================================================
-// COMPONENTE PLAYER (Estilizado e Flexível)
+// COMPONENTE PLAYER (FLEXÍVEL)
 // =========================================================
 function Player({
   id,
@@ -50,7 +50,7 @@ function Player({
   currentlyPlaying,
   setCurrentlyPlaying,
   refsMap,
-  aspectRatio = "16/9", // NOVO: Padrão 16:9, mas pode ser "9/16", "1/1", etc.
+  aspectRatio = "16/9", 
 }: {
   id: VideoKey;
   src: string;
@@ -58,7 +58,7 @@ function Player({
   currentlyPlaying: VideoKey | null;
   setCurrentlyPlaying: (k: VideoKey | null) => void;
   refsMap: React.MutableRefObject<Record<VideoKey, HTMLVideoElement | null>>;
-  aspectRatio?: string; // NOVO: Prop para proporção
+  aspectRatio?: string;
 }) {
   const [isLoading, setIsLoading] = useState(false);
   const [isPosterVisible, setIsPosterVisible] = useState(true);
@@ -96,7 +96,7 @@ function Player({
   return (
     <div 
       className="relative w-full rounded-2xl shadow-2xl overflow-hidden border-4 border-white ring-1 ring-gray-200 bg-gray-900 group"
-      style={{ aspectRatio: aspectRatio }} // NOVO: Define a proporção aqui
+      style={{ aspectRatio: aspectRatio }}
     >
       <video
         ref={(el) => {
@@ -145,6 +145,7 @@ function Player({
     </div>
   );
 }
+
 // =========================================================
 // PÁGINA PRINCIPAL
 // =========================================================
@@ -226,7 +227,6 @@ export default function HomePage() {
       
       {/* SEÇÃO 1: HERO / VSL */}
       <section className="relative py-16 md:py-28 overflow-hidden">
-        {/* Background Image com Overlay */}
         <div 
             className="absolute inset-0 bg-cover bg-center z-0" 
             style={{ backgroundImage: "url('https://images.unsplash.com/photo-1505751172876-fa1923c5c528?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80')" }}
@@ -254,6 +254,7 @@ export default function HomePage() {
               currentlyPlaying={currentlyPlaying}
               setCurrentlyPlaying={setCurrentlyPlaying}
               refsMap={videoRefs}
+              aspectRatio="16/9"
             />
           </div>
 
@@ -273,7 +274,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* SEÇÃO 2: PROVAS SOCIAIS */}
+      {/* SEÇÃO 2: PROVAS SOCIAIS (CORRIGIDA) */}
       <section className="py-16 bg-white">
         <div className="max-w-6xl mx-auto px-4">
           <div className="text-center mb-12">
@@ -283,70 +284,53 @@ export default function HomePage() {
             <div className="h-1 w-24 bg-green-500 mx-auto rounded-full"></div>
           </div>
           
-// SEÇÃO 2: PROVAS SOCIAIS
-{/* ... outros códigos da section ... */}
-
-<div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12 justify-items-center">
-    {/* Wrapper para o Depoimento 1 */}
-    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 shadow-lg w-full max-w-sm"> {/* Adicionado w-full e max-w-sm */}
-        <Player
-            id="test1"
-            src={VIDEO_SOURCES.test1}
-            poster={POSTER_SOURCES.test1}
-            currentlyPlaying={currentlyPlaying}
-            setCurrentlyPlaying={setCurrentlyPlaying}
-            refsMap={videoRefs}
-            aspectRatio="9/16"
-        />
-        <div className="mt-4 flex items-center gap-2">
-            <div className="w-10 h-10 bg-slate-300 rounded-full flex items-center justify-center text-slate-600 font-bold">V</div> {/* Mudei a inicial aqui */}
-            <div>
-                <p className="font-bold text-slate-800">Valdirene S.</p> {/* Mudei o nome aqui */}
-                <div className="flex text-yellow-400 text-xs"><StarIcon className="w-4 h-4"/><StarIcon className="w-4 h-4"/><StarIcon className="w-4 h-4"/><StarIcon className="w-4 h-4"/><StarIcon className="w-4 h-4"/></div>
-            </div>
-        </div>
-    </div>
-
-    {/* Wrapper para o Depoimento 2 */}
-    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 shadow-lg w-full max-w-sm"> {/* Adicionado w-full e max-w-sm */}
-        <Player
-            id="test2"
-            src={VIDEO_SOURCES.test2}
-            poster={POSTER_SOURCES.test2}
-            currentlyPlaying={currentlyPlaying}
-            setCurrentlyPlaying={setCurrentlyPlaying}
-            refsMap={videoRefs}
-            aspectRatio="9/16"
-        />
-        <div className="mt-4 flex items-center gap-2">
-            <div className="w-10 h-10 bg-slate-300 rounded-full flex items-center justify-center text-slate-600 font-bold">M</div> {/* Mudei a inicial aqui */}
-            <div>
-                <p className="font-bold text-slate-800">Maria P.</p> {/* Mudei o nome aqui */}
-                <div className="flex text-yellow-400 text-xs"><StarIcon className="w-4 h-4"/><StarIcon className="w-4 h-4"/><StarIcon className="w-4 h-4"/><StarIcon className="w-4 h-4"/><StarIcon className="w-4 h-4"/></div>
-            </div>
-        </div>
-    </div>
-</div>
-
-{/* ... outros códigos da section ... */}
-
-            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 shadow-lg">
+          {/* GRID OTIMIZADO PARA VÍDEOS VERTICAIS */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12 justify-items-center">
+             
+             {/* Depoimento 1 */}
+             <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 shadow-lg w-full max-w-sm">
                 <Player
-                id="test2"
-                src={VIDEO_SOURCES.test2}
-                poster={POSTER_SOURCES.test2}
-                currentlyPlaying={currentlyPlaying}
-                setCurrentlyPlaying={setCurrentlyPlaying}
-                refsMap={videoRefs}
+                    id="test1"
+                    src={VIDEO_SOURCES.test1}
+                    poster={POSTER_SOURCES.test1}
+                    currentlyPlaying={currentlyPlaying}
+                    setCurrentlyPlaying={setCurrentlyPlaying}
+                    refsMap={videoRefs}
+                    aspectRatio="9/16" // <--- MANTÉM A PROPORÇÃO VERTICAL
                 />
-                 <div className="mt-4 flex items-center gap-2">
-                    <div className="w-10 h-10 bg-slate-300 rounded-full flex items-center justify-center text-slate-600 font-bold">J</div>
+                <div className="mt-4 flex items-center gap-2">
+                    <div className="w-10 h-10 bg-slate-300 rounded-full flex items-center justify-center text-slate-600 font-bold">V</div>
                     <div>
-                        <p className="font-bold text-slate-800">Maria P.</p>
-                        <div className="flex text-yellow-400 text-xs"><StarIcon className="w-4 h-4"/><StarIcon className="w-4 h-4"/><StarIcon className="w-4 h-4"/><StarIcon className="w-4 h-4"/><StarIcon className="w-4 h-4"/></div>
+                        <p className="font-bold text-slate-800">Valdirene S.</p>
+                        <div className="flex text-yellow-400 text-xs">
+                            <StarIcon className="w-4 h-4"/><StarIcon className="w-4 h-4"/><StarIcon className="w-4 h-4"/><StarIcon className="w-4 h-4"/><StarIcon className="w-4 h-4"/>
+                        </div>
                     </div>
                 </div>
             </div>
+
+            {/* Depoimento 2 */}
+            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 shadow-lg w-full max-w-sm">
+                <Player
+                    id="test2"
+                    src={VIDEO_SOURCES.test2}
+                    poster={POSTER_SOURCES.test2}
+                    currentlyPlaying={currentlyPlaying}
+                    setCurrentlyPlaying={setCurrentlyPlaying}
+                    refsMap={videoRefs}
+                    aspectRatio="9/16" // <--- MANTÉM A PROPORÇÃO VERTICAL
+                />
+                 <div className="mt-4 flex items-center gap-2">
+                    <div className="w-10 h-10 bg-slate-300 rounded-full flex items-center justify-center text-slate-600 font-bold">M</div>
+                    <div>
+                        <p className="font-bold text-slate-800">Maria P.</p>
+                        <div className="flex text-yellow-400 text-xs">
+                            <StarIcon className="w-4 h-4"/><StarIcon className="w-4 h-4"/><StarIcon className="w-4 h-4"/><StarIcon className="w-4 h-4"/><StarIcon className="w-4 h-4"/>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
           </div>
         </div>
       </section>
@@ -379,7 +363,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* SEÇÃO 5: OFERTA (DESIGN MODERNO) */}
+      {/* SEÇÃO 5: OFERTA */}
       <section id="oferta" className="py-20 bg-gradient-to-b from-white to-slate-100">
         <div className="max-w-7xl mx-auto px-4">
           <div className="text-center mb-16">
