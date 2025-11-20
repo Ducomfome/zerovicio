@@ -27,9 +27,9 @@ const VIDEO_SOURCES: Record<VideoKey, string> = {
 };
 
 const POSTER_SOURCES: Record<VideoKey, string> = {
-  vsl: "https://placehold.co/1280x720/10b981/ffffff/png?text=Assista+ao+Vídeo+Oficial",
-  test1: "https://placehold.co/1280x720/e2e8f0/475569/png?text=Depoimento+Maria",
-  test2: "https://placehold.co/1280x720/e2e8f0/475569/png?text=Depoimento+João",
+  vsl: "",
+  test1: "",
+  test2: "",
 };
 
 const getCookie = (name: string) => {
