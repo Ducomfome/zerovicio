@@ -21,7 +21,7 @@ import {
 type VideoKey = "vsl" | "test1" | "test2";
 
 const VIDEO_SOURCES: Record<VideoKey, string> = {
-  vsl: "[SEU_LINK_DO_VSL_AQUI]",
+  vsl: "https://pub-9ad786fb39ec4b43b2905a55edcb38d9.r2.dev/1120.mp4",
   test1: "https://pub-9ad786fb39ec4b43b2905a55edcb38d9.r2.dev/baixados%20(1).mp4",
   test2: "https://pub-9ad786fb39ec4b43b2905a55edcb38d9.r2.dev/baixados%20(2).mp4",
 };
