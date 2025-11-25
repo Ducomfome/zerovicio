@@ -27,7 +27,7 @@ const VIDEO_SOURCES: Record<VideoKey, string> = {
 };
 
 const POSTER_SOURCES: Record<VideoKey, string> = {
-  vsl: "https://placehold.co/1280x720/10b981/ffffff/png?text=Assista+ao+Vídeo+Oficial",
+  vsl: "",
   test1: "",
   test2: "",
 };
