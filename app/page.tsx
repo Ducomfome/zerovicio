@@ -27,7 +27,7 @@ const VIDEO_SOURCES: Record<VideoKey, string> = {
 };
 
 const POSTER_SOURCES: Record<VideoKey, string> = {
-  vsl: "",
+  vsl: "https://pub-9ad786fb39ec4b43b2905a55edcb38d9.r2.dev/images%20(1)%20(1).png",
   test1: "",
   test2: "",
 };
